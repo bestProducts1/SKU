@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perfume Catalog (Fulfillment)</title>
+    <link rel="icon" type="image/png" href="icon/32.png" />
+    <link rel="apple-touch-icon" href="icon/180.png" />
+    <style>
+      :root {
+        --primary-color: #007bff;
+        --warning-color: #ff9800;
+        --danger-color: #dc3545;
+        --success-color: #28a745; /* 新增成功色 */
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background-color: #f9f9f9;
+        margin: 0;
+        padding-top: 20px;
+      }
+      .header-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        z-index: 1000;
+        padding: 0 10px;
+        transition: height 0.2s;
+      }
+      .search-wrapper {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .search-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        flex-grow: 1;
+      }
+      #search-input {
+        width: 100%;
+        padding: 12px 40px 12px 15px;
+        font-size: 1rem;
+        border-radius: 22px;
+        border: 1px solid #ddd;
+        background-color: #f4f4f4;
+        box-sizing: border-box;
+        -webkit-appearance: none;
+      }
+      #clear-search-btn {
+        position: absolute;
+        right: 45px;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: #ccc;
+        color: white;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 20px;
+        text-align: center;
+        display: none;
+      }
+
+      /* 通用圆形按钮样式 */
+      .icon-btn {
+        height: 44px;
+        width: 44px;
+        border-radius: 22px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        margin-left: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa;
+        flex-shrink: 0;
+      }
+
+      /* 购物车按钮 */
+      #cart-button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 0 12px;
+        height: 44px;
+        min-width: 44px; /* 稍微宽一点 */
+        border-radius: 22px;
+        font-size: 1.5rem;
+        margin-left: 10px;
+        position: relative;
+        text-decoration: none;
+      }
+      #cart-button:hover {
+        background-color: #0056b3;
+      }
+
+      /* 清空购物车按钮 */
+      #reset-cart-btn {
+        color: var(--danger-color);
+      }
+      #reset-cart-btn:hover {
+        background-color: var(--danger-color);
+        color: white;
+        border-color: var(--danger-color);
+      }
+
+      /* 【新增】SKU 提取按钮 */
+      #oos-tool-btn {
+        color: #6610f2; /* 紫色，区分其他按钮 */
+        border-color: #d0bfff;
+      }
+      #oos-tool-btn:hover {
+        background-color: #6610f2;
+        color: white;
+      }
+
+      #cart-count {
+        position: absolute;
+        top: -5px;
+        right: -8px;
+        background-color: red;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        min-width: 12px;
+        text-align: center;
+        line-height: 1.2;
+        display: none;
+      }
+      .pulse {
+        animation: pulse-animation 0.5s ease;
+      }
+      @keyframes pulse-animation {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.2);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .navbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 10px 0;
+        border-top: 1px solid #eee;
+        gap: 8px;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .nav-btn {
+        padding: 8px 14px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border: 1px solid #ddd;
+        background-color: #fdfdfd;
+        color: #333;
+        border-radius: 18px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .nav-btn:hover {
+        background-color: #f0f0f0;
+      }
+      .nav-btn.active {
+        background-color: #333;
+        color: white;
+        border-color: #333;
+      }
+      .nav-btn.all-btn.active {
+        background-color: #d9534f;
+        border-color: #d9534f;
+        color: white;
+      }
+      .supplier-badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 3px 8px;
+        background-color: #eee;
+        color: #555;
+        border-radius: 10px;
+        display: inline-block;
+        margin-top: 8px;
+        align-self: flex-start;
+      }
+      .filter-divider {
+        width: 100%;
+        flex-basis: 100%;
+        border: none;
+        border-top: 1px solid #eee;
+        margin: 5px 0;
+      }
+      .supplier-btn {
+        background-color: #f0f6ff;
+        color: #007bff;
+        border: 1px solid #b3d1ff;
+      }
+      .supplier-btn:hover {
+        background-color: #e0ecff;
+      }
+      .supplier-btn.active {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 10px;
+      }
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+      }
+      .product-card {
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+      .product-card.out-of-stock {
+        opacity: 0.9;
+        border: 1px dashed #ccc;
+      }
+      .product-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+      }
+      .product-image-container {
+        position: relative;
+        width: 100%;
+        padding-top: 100%;
+      }
+      .product-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .stock-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #333;
+        font-size: 1.1rem;
+        backdrop-filter: blur(2px);
+      }
+      .product-info {
+        padding: 12px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      .product-id {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: #888;
+        margin: 0 0 4px;
+      }
+      .product-name {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #222;
+        margin: 0;
+        flex-grow: 1;
+        line-height: 1.3;
+      }
+      .product-price {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin: 8px 0;
+      }
+      .add-to-cart-btn {
+        background-color: #f4f4f4;
+        color: #333;
+        border: none;
+        padding: 10px;
+        width: 100%;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background-color 0.2s;
+      }
+      .add-to-cart-btn:hover {
+        background-color: #e9e9e9;
+      }
+      .add-to-cart-btn.oos-allowed {
+        background-color: var(--warning-color);
+        color: white;
+      }
+      .add-to-cart-btn.oos-allowed:hover {
+        background-color: #e68900;
+      }
+
+      .item-count-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        font-weight: bold;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        display: none;
+      }
+
+      /* 【新增】模态框样式 */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        visibility: hidden;
+        opacity: 0;
+        transition: all 0.3s;
+      }
+      .modal-overlay.open {
+        visibility: visible;
+        opacity: 1;
+      }
+      .modal-content {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+      .modal-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #333;
+      }
+      .modal-body {
+        overflow-y: auto;
+        flex: 1;
+        border: 1px solid #eee;
+        padding: 10px;
+        background: #f9f9f9;
+        margin-bottom: 15px;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+      }
+      .modal-btn {
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-weight: bold;
+        font-size: 1rem;
+      }
+      .modal-btn:hover {
+        background: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header-container">
+      <div class="search-wrapper">
+        <div class="search-container">
+          <input type="text" id="search-input" placeholder="Search..." />
+          <button id="clear-search-btn">&times;</button>
+        </div>
+
+        <button
+          id="oos-tool-btn"
+          class="icon-btn"
+          title="Copy Supplier 2 Out-of-Stock SKUs"
+        >
+          📋
+        </button>
+
+        <button
+          id="reset-cart-btn"
+          class="icon-btn"
+          aria-label="Clear Cart"
+          title="Clear entire cart"
+        >
+          🗑️
+        </button>
+
+        <a
+          href="cart.html"
+          id="cart-button"
+          class="icon-btn"
+          aria-label="View Cart"
+        >
+          🛒
+          <span id="cart-count">0</span>
+        </a>
+      </div>
+
+      <div class="navbar">
+        <button class="nav-btn" data-brand="Dior">Dior</button>
+        <button class="nav-btn" data-brand="Chanel">Chanel</button>
+        <button class="nav-btn" data-brand="Louis Vuitton">
+          Louis Vuitton
+        </button>
+        <button class="nav-btn" data-brand="Tom Ford">Tom Ford</button>
+        <button class="nav-btn" data-brand="Creed">Creed</button>
+        <button class="nav-btn" data-brand="Yves Saint Laurent">
+          Yves Saint Laurent
+        </button>
+        <button class="nav-btn" data-brand="Valentino">Valentino</button>
+        <button class="nav-btn" data-brand="Versace">Versace</button>
+        <button class="nav-btn" data-brand="Jean Paul Gaultier">
+          Jean Paul Gaultier
+        </button>
+        <button class="nav-btn" data-brand="Parfums de Marly">
+          Parfums de Marly
+        </button>
+        <button class="nav-btn" data-brand="Giorgio Armani">
+          Giorgio Armani
+        </button>
+        <button class="nav-btn" data-brand="Maison Francis Kurkdjian">
+          Maison Francis Kurkdjian
+        </button>
+        <button class="nav-btn" data-brand="Gucci">Gucci</button>
+        <button class="nav-btn" data-brand="Lattafa">Lattafa</button>
+        <button class="nav-btn" data-brand="Azzaro">Azzaro</button>
+        <button class="nav-btn" data-brand="Carolina Herrera">
+          Carolina Herrera
+        </button>
+        <button class="nav-btn" data-brand="Paco Rabanne">Paco Rabanne</button>
+        <button class="nav-btn" data-brand="Initio">Initio</button>
+        <button class="nav-btn" data-brand="Xerjoff">Xerjoff</button>
+        <button class="nav-btn" data-brand="Kayali">Kayali</button>
+        <button class="nav-btn" data-brand="Amouage">Amouage</button>
+        <button class="nav-btn" data-brand="Burberry">Burberry</button>
+        <button class="nav-btn" data-brand="Prada">Prada</button>
+        <button class="nav-btn" data-brand="Ralph Lauren">Ralph Lauren</button>
+        <button class="nav-btn" data-brand="BVLGARI">BVLGARI</button>
+        <button class="nav-btn" data-brand="Givenchy">Givenchy</button>
+        <button class="nav-btn" data-brand="Kilian">Kilian</button>
+        <button class="nav-btn" data-brand="Lancôme">Lancôme</button>
+        <button class="nav-btn all-btn active" id="show-all-btn">
+          All Brands
+        </button>
+
+        <hr class="filter-divider" />
+        <button
+          class="nav-btn supplier-btn active"
+          id="supplier-all-btn"
+          data-supplier="all"
+        >
+          All Suppliers
+        </button>
+        <button class="nav-btn supplier-btn" data-supplier="供应商一">
+          供应商一
+        </button>
+        <button class="nav-btn supplier-btn" data-supplier="供应商二">
+          供应商二
+        </button>
+        <button class="nav-btn supplier-btn" data-supplier="供应商三">
+          供应商三
+        </button>
+        <button class="nav-btn supplier-btn" data-supplier="供应商四">
+          供应商四
+        </button>
+        <button class="nav-btn supplier-btn" data-supplier="供应商五">
+          供应商五
+        </button>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="product-grid" id="perfume-list"></div>
+    </div>
+
+    <div class="modal-overlay" id="sku-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">Supplier 2 Out-of-Stock SKUs</div>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-sku-list"></div>
+        <button class="modal-btn" onclick="copyModalContent()">
+          Copy All & Close
+        </button>
+      </div>
+    </div>
+
+    <script src="db.js"></script>
+
+    <script>
+      let currentBrandFilter = "all";
+      let currentSupplierFilter = "all";
+      let searchTerm = "";
+      let cartItems = [];
+
+      const perfumeList = document.getElementById("perfume-list");
+      const searchInput = document.getElementById("search-input");
+      const clearSearchButton = document.getElementById("clear-search-btn");
+      const cartButton = document.getElementById("cart-button");
+      const resetCartButton = document.getElementById("reset-cart-btn");
+      const cartCount = document.getElementById("cart-count");
+
+      const oosToolBtn = document.getElementById("oos-tool-btn");
+      const skuModal = document.getElementById("sku-modal");
+
+      const brandButtons = document.querySelectorAll(".nav-btn[data-brand]");
+      const showAllButton = document.getElementById("show-all-btn");
+      const supplierButtons = document.querySelectorAll(".supplier-btn");
+
+      const headerContainer = document.querySelector(".header-container");
+      function adjustBodyPadding() {
+        if (headerContainer) {
+          document.body.style.paddingTop =
+            headerContainer.offsetHeight + 15 + "px";
+        }
+      }
+
+      // SKU 提取逻辑
+      oosToolBtn.addEventListener("click", () => {
+        const db = window.perfumeDB || [];
+        // 1. 筛选：供应商二 + 库存为0 (不包含 -1)
+        const targets = db.filter(
+          (p) => p.supplier === "供应商二" && Number(p.stock) === 0,
+        );
+
+        if (targets.length === 0) {
+          alert("Good news! No out-of-stock items found for 供应商二.");
+          return;
+        }
+
+        const skus = targets.map((p) => p.sku || p.id);
+        const listText = skus.join("\n");
+
+        document.getElementById("modal-sku-list").textContent = listText;
+        skuModal.classList.add("open");
+
+        navigator.clipboard
+          .writeText(listText)
+          .then(() => {
+            // console.log('Copied automatically');
+          })
+          .catch((err) => {
+            console.error("Auto-copy failed", err);
+          });
+      });
+
+      function closeModal() {
+        skuModal.classList.remove("open");
+      }
+
+      function copyModalContent() {
+        const text = document.getElementById("modal-sku-list").textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          alert("Copied to clipboard!");
+          closeModal();
+        });
+      }
+
+      window.renderPerfumes = function () {
+        const db = window.perfumeDB || [];
+
+        perfumeList.innerHTML = "";
+        if (db.length === 0) {
+          perfumeList.innerHTML =
+            "<p style='text-align:center; padding:20px;'>Loading products from database...</p>";
+          return;
+        }
+
+        const filteredPerfumes = db.filter((perfume) => {
+          // 【核心修改】如果库存是 -1，直接不显示（但 0 会显示）
+          if (Number(perfume.stock) === -1) return false;
+
+          const matchesBrand =
+            currentBrandFilter === "all" ||
+            perfume.brand === currentBrandFilter;
+          const matchesSupplier =
+            currentSupplierFilter === "all" ||
+            perfume.supplier === currentSupplierFilter;
+          const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
+          const nameStr = perfume.name
+            ? String(perfume.name).toLowerCase()
+            : "";
+          const idStr = perfume.id ? String(perfume.id).toLowerCase() : "";
+          const term = searchTerm.toLowerCase();
+
+          return (
+            matchesBrand &&
+            matchesSupplier &&
+            (nameStr.includes(term) ||
+              idStr.includes(term) ||
+              skuStr.includes(term))
+          );
+        });
+
+        if (filteredPerfumes.length === 0) {
+          perfumeList.innerHTML = "<p>No products found.</p>";
+        }
+
+        filteredPerfumes.forEach((perfume) => {
+          const card = document.createElement("div");
+          card.className = "product-card";
+          const isOutOfStock = Number(perfume.stock) === 0;
+
+          if (isOutOfStock) card.classList.add("out-of-stock");
+
+          card.innerHTML = `
+            <div class="product-image-container">
+              <img src="${perfume.img}" alt="${
+                perfume.name
+              }" class="product-image" loading="lazy">
+              ${
+                isOutOfStock
+                  ? '<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">Stock: 0</div>'
+                  : ""
+              }
+              <div class="item-count-badge" id="count-${perfume.id}"></div>
+            </div>
+            <div class="product-info">
+              <p class="product-id">${perfume.id}</p>
+              <p class="product-name">${perfume.name}</p>
+              <p class="product-price">$${perfume.price}</p>
+              <span class="supplier-badge">${
+                perfume.supplier || "Unknown"
+              }</span>
+            </div>
+            
+            <button class="add-to-cart-btn ${
+              isOutOfStock ? "oos-allowed" : ""
+            }" data-id="${perfume.id}">
+              ${isOutOfStock ? "Add (No Stock)" : "Add to Cart"}
+            </button>
+          `;
+          perfumeList.appendChild(card);
+        });
+
+        renderItemCounts();
+        setTimeout(adjustBodyPadding, 50);
+      };
+
+      function loadCartFromLocalStorage() {
+        const storedCart = localStorage.getItem("perfumeCart");
+        cartItems = storedCart ? JSON.parse(storedCart) : [];
+        updateCartCount();
+      }
+
+      function saveCartToLocalStorage() {
+        localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
+      }
+
+      function updateCartCount() {
+        const totalQuantity = cartItems.reduce(
+          (sum, item) => sum + item.quantity,
+          0,
+        );
+        if (totalQuantity > 0) {
+          cartCount.textContent = totalQuantity;
+          cartCount.style.display = "flex";
+        } else {
+          cartCount.style.display = "none";
+        }
+      }
+
+      function renderItemCounts() {
+        document.querySelectorAll(".item-count-badge").forEach((badge) => {
+          badge.style.display = "none";
+        });
+        cartItems.forEach((item) => {
+          const badge = document.getElementById(`count-${item.name}`);
+          if (badge) {
+            badge.textContent = item.quantity;
+            badge.style.display = "flex";
+          }
+        });
+      }
+
+      function pulseCartButton() {
+        cartButton.classList.add("pulse");
+        setTimeout(() => {
+          cartButton.classList.remove("pulse");
+        }, 500);
+      }
+
+      function addItemToCart(productId) {
+        const db = window.perfumeDB || [];
+        const perfumeData = db.find((p) => p.id === productId);
+
+        if (!perfumeData) return;
+
+        const { id, name, img, price, tier, sku, supplier } = perfumeData;
+        const existingItem = cartItems.find((cartItem) => cartItem.name === id);
+
+        if (existingItem) {
+          existingItem.quantity++;
+        } else {
+          cartItems.push({
+            name: id,
+            caption: `${id} - ${name}`,
+            img,
+            quantity: 1,
+            price: Number(price),
+            tier: tier,
+            sku: sku,
+            supplier: supplier,
+          });
+        }
+        saveCartToLocalStorage();
+        updateCartCount();
+        renderItemCounts();
+        pulseCartButton();
+      }
+
+      function clearCart() {
+        if (cartItems.length === 0) return;
+        if (confirm("Are you sure you want to clear the cart?")) {
+          cartItems = [];
+          saveCartToLocalStorage();
+          updateCartCount();
+          renderItemCounts();
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        loadCartFromLocalStorage();
+        adjustBodyPadding();
+        window.addEventListener("resize", adjustBodyPadding);
+        resetCartButton.addEventListener("click", clearCart);
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "/" && document.activeElement !== searchInput) {
+            e.preventDefault();
+            searchInput.focus();
+          }
+        });
+
+        searchInput.addEventListener("input", () => {
+          searchTerm = searchInput.value.toLowerCase();
+          clearSearchButton.style.display = searchTerm ? "block" : "none";
+          renderPerfumes();
+        });
+
+        searchInput.addEventListener("paste", (e) => {
+          e.preventDefault();
+          const pastedText = (e.clipboardData || window.clipboardData).getData(
+            "text",
+          );
+          
+          const isOrder = pastedText.includes("New Order") || /[xX×]\s*[*]?\(?\d+/.test(pastedText);
+          
+          // 【新增】检测是否包含 "名称*数字" 的 SKU 拼接格式
+          const isSkuString = /\S+\*\d+/.test(pastedText);
+
+          if (isOrder && pastedText.includes("\n")) {
+            handleOrderPaste(pastedText);
+          } else if (isSkuString) {
+            // 如果是 SKU 拼接格式，调用新的处理函数
+            handleSkuStringPaste(pastedText);
+          } else {
+            searchInput.value = pastedText;
+            searchTerm = pastedText.toLowerCase();
+            clearSearchButton.style.display = searchTerm ? "block" : "none";
+            renderPerfumes();
+          }
+        });
+
+        clearSearchButton.addEventListener("click", () => {
+          searchTerm = "";
+          searchInput.value = "";
+          clearSearchButton.style.display = "none";
+          renderPerfumes();
+        });
+
+        function handleOrderPaste(text) {
+          const db = window.perfumeDB || [];
+          if (db.length === 0) {
+            alert("Database not loaded yet.");
+            return;
+          }
+
+          const lines = text.split("\n");
+          let importedCount = 0;
+          let notFoundList = [];
+          let tempCart = [];
+
+          const lineRegex =
+            /^\s*[-*•]?\s*([A-Za-z0-9]+).*[xX×]\s*[*]?\(?(\d+)/i;
+
+          lines.forEach((line) => {
+            const match = line.match(lineRegex);
+            if (match) {
+              const id = match[1].trim();
+              const qty = parseInt(match[2]);
+
+              const product = db.find((p) => p.id === id);
+
+              if (product) {
+                tempCart.push({
+                  name: product.id,
+                  caption: `${product.id} - ${product.name}`,
+                  img: product.img,
+                  quantity: qty,
+                  price: Number(product.price),
+                  tier: product.tier,
+                  sku: product.sku,
+                  supplier: product.supplier,
+                });
+                importedCount += qty;
+              } else {
+                notFoundList.push(id);
+              }
+            }
+          });
+
+          if (importedCount > 0) {
+            cartItems = tempCart;
+            saveCartToLocalStorage();
+            updateCartCount();
+            renderItemCounts();
+
+            searchInput.value = "";
+            searchTerm = "";
+            clearSearchButton.style.display = "none";
+
+            let msg = `✅ Success! Added ${importedCount} items.`;
+            if (notFoundList.length > 0) {
+              msg += `\n\n⚠️ Skipped (Not in DB): ${notFoundList.join(", ")}`;
+            }
+            alert(msg);
+          } else {
+            if (lines.length > 2) {
+              alert(
+                "Detected paste but found 0 products. Check IDs match database.",
+              );
+            }
+          }
+        }
+
+        function handleSkuStringPaste(text) {
+          const db = window.perfumeDB || [];
+          if (db.length === 0) {
+            alert("Database not loaded yet.");
+            return;
+          }
+
+          // 1. 清理诸如 "--- 供应商二 ---" 等干扰性质的表头文本
+          let cleanText = text.replace(/---.*?---/g, '').trim();
+
+          // 2. 支持用加号 (+) 或者换行符 (\n) 分割每个商品
+          const items = cleanText.split(/[+\n]/);
+          let importedCount = 0;
+          let notFoundList = [];
+
+          items.forEach((itemStr) => {
+            // 匹配 "名称*数量" 格式（允许字符前后有空格）
+            const match = itemStr.match(/(.*?)\*(\d+)/);
+            if (match) {
+              const skuName = match[1].trim();
+              const qty = parseInt(match[2], 10);
+              
+              if (!skuName || qty <= 0) return;
+
+              // 3. 智能查找匹配的商品：
+              // 优先精确匹配 SKU -> 其次精确匹配名称 -> 最后尝试模糊包含匹配 SKU 或名称
+              const product = db.find(p => p.sku && p.sku === skuName) ||
+                              db.find(p => p.name && p.name === skuName) ||
+                              db.find(p => (p.sku && p.sku.includes(skuName)) || (p.name && p.name.includes(skuName)));
+
+              if (product) {
+                // 如果库中存在该商品，则加入购物车（如果已有则叠加数量）
+                const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
+                if (existingItem) {
+                  existingItem.quantity += qty;
+                } else {
+                  cartItems.push({
+                    name: product.id,
+                    caption: `${product.id} - ${product.name}`,
+                    img: product.img,
+                    quantity: qty,
+                    price: Number(product.price),
+                    tier: product.tier,
+                    sku: product.sku,
+                    supplier: product.supplier,
+                  });
+                }
+                importedCount += qty;
+              } else {
+                notFoundList.push(skuName); // 记录未能匹配的 SKU
+              }
+            }
+          });
+
+          // 4. 处理最终结果与反馈
+          if (importedCount > 0) {
+            saveCartToLocalStorage();
+            updateCartCount();
+            renderItemCounts();
+
+            searchInput.value = "";
+            searchTerm = "";
+            clearSearchButton.style.display = "none";
+
+            let msg = `✅ 成功加购 ${importedCount} 件商品！`;
+            if (notFoundList.length > 0) {
+              msg += `\n\n⚠️ 未找到匹配商品(请手动检查拼写或库存):\n${notFoundList.join(" , ")}`;
+            }
+            alert(msg);
+          } else {
+            // 如果解析后发现数量为0，当成普通搜索处理
+            searchInput.value = text;
+            searchTerm = text.toLowerCase();
+            clearSearchButton.style.display = searchTerm ? "block" : "none";
+            renderPerfumes();
+          }
+        }
+
+        brandButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            currentBrandFilter = button.dataset.brand;
+            brandButtons.forEach((btn) => btn.classList.remove("active"));
+            showAllButton.classList.remove("active");
+            button.classList.add("active");
+            renderPerfumes();
+          });
+        });
+
+        showAllButton.addEventListener("click", () => {
+          currentBrandFilter = "all";
+          brandButtons.forEach((btn) => btn.classList.remove("active"));
+          showAllButton.classList.add("active");
+          renderPerfumes();
+        });
+
+        supplierButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            currentSupplierFilter = button.dataset.supplier;
+            supplierButtons.forEach((btn) => btn.classList.remove("active"));
+            button.classList.add("active");
+            renderPerfumes();
+          });
+        });
+
+        perfumeList.addEventListener("click", (e) => {
+          if (e.target.classList.contains("add-to-cart-btn")) {
+            const productId = e.target.dataset.id;
+            addItemToCart(productId);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
