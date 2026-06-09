@@ -4,7 +4,7 @@
 
 // !!! 请替换成你第一步里复制的 Google Sheet CSV 链接 !!!
 const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?gid=0&single=true&output=csv";
 
 // 缓存时间：5分钟 (300000毫秒)
 const CACHE_DURATION = 5 * 60 * 1000;
