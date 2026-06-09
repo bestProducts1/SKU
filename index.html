@@ -665,11 +665,12 @@
 
           if (isOutOfStock) card.classList.add("out-of-stock");
 
+          // 强制用 ID 编号去本地 images 文件夹抓图
+          const correctImgSrc = `images/${perfume.id}.webp`;
+
           card.innerHTML = `
             <div class="product-image-container">
-              <img src="${perfume.img}" alt="${
-                perfume.name
-              }" class="product-image" loading="lazy">
+              <img src="${correctImgSrc}" alt="${perfume.name}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
               ${
                 isOutOfStock
                   ? '<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">Stock: 0</div>'
@@ -681,16 +682,13 @@
               <p class="product-id">${perfume.id}</p>
               <p class="product-name">${perfume.name}</p>
               <p class="product-price">$${perfume.price}</p>
-              <span class="supplier-badge">${
-                perfume.supplier || "Unknown"
-              }</span>
+              <span class="supplier-badge">${perfume.supplier || "Unknown"}</span>
             </div>
             
-            <button class="add-to-cart-btn ${
-              isOutOfStock ? "oos-allowed" : ""
-            }" data-id="${perfume.id}">
+            <button class="add-to-cart-btn ${isOutOfStock ? "oos-allowed" : ""}" data-id="${perfume.id}">
               ${isOutOfStock ? "Add (No Stock)" : "Add to Cart"}
             </button>
+            
           `;
           perfumeList.appendChild(card);
         });
