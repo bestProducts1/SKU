@@ -1,5 +1,8 @@
 @echo off
 
+echo 正在从 GitHub 网页端拉取最新修改，防止覆盖...
+git pull origin main --rebase
+
 echo Adding files...
 git add .
 
