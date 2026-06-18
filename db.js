@@ -17,8 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initProductData() {
-  const cacheKey = "perfumeDB_Data";
-  const timeKey = "perfumeDB_Time";
+  const cacheKey = "perfumeDB_Data_v2";
+const timeKey = "perfumeDB_Time_v2";
   const now = new Date().getTime();
   const cachedTime = localStorage.getItem(timeKey);
   const cachedData = localStorage.getItem(cacheKey);
