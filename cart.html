@@ -498,76 +498,17 @@
         }
 
         // --- 【核心修改】计算含有阶梯折扣的最终总价 ---
-        function generateOrderString() {
+     function generateOrderString() {
           if (cartItems.length === 0) return "";
 
-          const supplierOrder = [
-            "供应商一",
-            "供应商二",
-            "供应商三",
-            "供应商四",
-            "供应商五",
-          ];
-
-          const groupedBySupplier = {};
-          let totalQty = 0;
-          let subtotalAmount = 0;
-
-          cartItems.forEach((item) => {
-            const supplier = item.supplier || "供应商二";
-            if (!groupedBySupplier[supplier]) {
-              groupedBySupplier[supplier] = [];
-            }
-            groupedBySupplier[supplier].push(item);
-
-            // 累加总数量
-            totalQty += item.quantity;
-            // 累加商品原总价
-            subtotalAmount += (item.price || 0) * item.quantity;
+          // 1. 循环提取购物车中每一项，优先使用英文名/SKU，紧跟 * 数量
+          const itemLines = cartItems.map((item) => {
+            const displayName = item.sku || item.name;
+            return `${displayName}*${item.quantity}`;
           });
 
-          // 阶梯折扣规则计算逻辑
-          const tiers = [
-            { min: 1, max: 1, percent: 0 },
-            { min: 2, max: 2, percent: 0.03 },
-            { min: 3, max: 4, percent: 0.05 },
-            { min: 5, max: 9, percent: 0.08 },
-            { min: 10, max: 19, percent: 0.14 },
-            { min: 20, max: 29, percent: 0.24 },
-            { min: 30, max: 49, percent: 0.26 },
-            { min: 50, max: 79, percent: 0.29 },
-            { min: 80, max: 100, percent: 0.32 },
-            { min: 101, max: Infinity, percent: 0.35 },
-          ];
-
-          const tier = tiers.find(
-            (t) => totalQty >= t.min && totalQty <= t.max,
-          ) || { percent: 0 };
-          const discountVal = subtotalAmount * tier.percent;
-          // 折扣后四舍五入到最近的整数，和客户版的结账逻辑保持完美一致
-          const finalAmount = Math.round(subtotalAmount - discountVal);
-
-          let allOrderParts = [];
-
-          supplierOrder.forEach((supplierName) => {
-            const items = groupedBySupplier[supplierName];
-            if (items && items.length > 0) {
-              allOrderParts.push(`--- ${supplierName} ---`);
-              const itemParts = items.map((item) => {
-                const sku = item.sku || item.name;
-                return `${sku}*${item.quantity}`;
-              });
-              allOrderParts.push(itemParts.join(" + "));
-            }
-          });
-
-          // 在末尾追加含有最终整数金额的客户格式
-          allOrderParts.push(""); // 加一个空行分隔
-          allOrderParts.push(`Total Quantity: ${totalQty} pcs`);
-          allOrderParts.push(`----------------------------`);
-          allOrderParts.push(`Total Amount: $${finalAmount.toFixed(2)}`);
-
-          return allOrderParts.join("\n");
+          // 2. 用 "\n"（换行符）将它们连接起来，去掉所有供应商和总价干扰，绝对不带任何加号或空格
+          return itemLines.join("\n");
         }
 
         function updatePageState() {
