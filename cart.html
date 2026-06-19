@@ -497,52 +497,44 @@
           localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
         }
 
-        // --- 【核心修改】计算含有阶梯折扣的最终总价 ---
-     function generateOrderString(rmbCost, usdShipping, trackingCount) {
+        // --- 【已修复】干净无财务尾巴的导出格式生成 ---
+        function generateOrderString() {
           if (cartItems.length === 0) return "";
 
-          // 1. 循环提取购物车中每一项，优先使用英文名/SKU，紧跟 * 数量
+          // 严格满足要求4：一键复制出来的订单文本只包含纯净的“商品*数量”，绝不夹带任何财务信息
           const itemLines = cartItems.map((item) => {
             const displayName = item.sku || item.name;
             return `${displayName}*${item.quantity}`;
           });
 
-          let resultText = itemLines.join("\n");
-
-          // 2. 在纯净订单文本的最末尾另起一行，追加只有你能看懂的财务小尾巴
-          resultText += `\n\n[财务对账：成本 ¥${rmbCost.toFixed(1)} / 运费 $${usdShipping.toFixed(1)} / 单号 ${trackingCount}个]`;
-          
-          return resultText;
+          return itemLines.join("\n");
         }
 
-       function updatePageState() {
-          // 1. 计算商品总件数
+        // --- 【已修复】盲打式数字对账看板刷新逻辑 ---
+        function updatePageState() {
           const totalQty = cartItems.reduce(
             (sum, item) => sum + item.quantity,
             0,
           );
 
-          // 2. 初始化重量和人民币成本
+          // 1. 自动从谷歌表格同步过来的 cost 列中提取金额并累加
           let totalWeight = 0;
-          let totalRmbCost = 0; // 总成本（人民币）
+          let totalRmbCost = 0; 
 
           cartItems.forEach((item) => {
-            // 智能判定是否为套盒（只要标题包含“套盒”或英文“Set”就判定为套盒）
             const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
-            
-            // 严格执行你的重量规则：套盒 4 磅，普通香水 1.2 磅
             if (isSet) {
               totalWeight += 4 * item.quantity;
             } else {
               totalWeight += 1.2 * item.quantity; 
             }
 
-            // 自动从你的谷歌表格里抓取小写表头叫 cost 的拿货价
+            // 读取加购项的实际 cost
             const unitCost = Number(item.cost) || 0;
             totalRmbCost += unitCost * item.quantity;
           });
 
-          // 3. 智能判定物流单号数量（超过40只发2个单号，超过80只发3个单号）
+          // 2. 智能判定物流单号数量
           let trackingNumCount = 1;
           if (totalQty > 80) {
             trackingNumCount = 3;
@@ -550,55 +542,50 @@
             trackingNumCount = 2;
           }
 
-          // 4. 严格执行最新的阶梯物流费规则（首3磅固定 $11，续磅每多1磅加 $1）
+          // 3. 核心物流计费规则（1-3磅$11，续重每磅加$1）
           let baseShipping = 0;
           if (totalWeight > 0) {
-            let roundedWeight = Math.ceil(totalWeight); // 货代传统：不足1磅按1磅算（向上取整）
-            
+            let roundedWeight = Math.ceil(totalWeight);
             if (roundedWeight <= 3) {
-              baseShipping = 11; // 1-3 磅统一收 $11
+              baseShipping = 11;
             } else {
-              baseShipping = 11 + (roundedWeight - 3) * 1; // 4磅及以上，每多1磅加$1（例如12磅 = 11 + 9 = $20）
+              baseShipping = 11 + (roundedWeight - 3) * 1;
             }
           }
 
-          // 5. 精算仓库代发费用
+          // 4. 精算仓库代发费用
           let warehouseFee = 0;
           if (totalQty > 0) {
-            // 操作费 + 手续费：首支操作费 $0.8，后续每支续支手续费 $0.3
             warehouseFee += 0.8 + (totalQty - 1) * 0.3;
-            // 包装费：只有1支收 $0.7，2支及以上收 $1.5
             warehouseFee += (totalQty === 1) ? 0.7 : 1.5;
           }
 
-          // 最终总运费 = 纯物流费 + 仓库代发费
           const totalUsdShipping = baseShipping + warehouseFee;
 
-          // 6. 恢复你原版代码里的 items 数量显示（确保原版底栏完全不报错、不白屏）
+          // 5. 保持原版底栏 items 数量正常显示，消灭未定义爆红
           totalQtyDisplay.innerHTML = `${totalQty} <span>items</span>`;
 
-          // 7. 【绝对防崩溃设计】在页面上动态长出一个属于你的内部财务对账通知条
+          // 6. 严格满足要求2和3：不显示“财务/成本/运费/￥”，只有你能看懂的纯粹极简盲打数字条
           let financeBox = document.getElementById("internal-finance-box");
           if (!financeBox) {
             financeBox = document.createElement("div");
             financeBox.id = "internal-finance-box";
-            // 使用完全符合你原版网页苹果极简风的灰色调样式
+            // 完美匹配原版苹果极简风
             financeBox.style.cssText = "background:#fbfbfd; border:1px solid #e5e5ea; padding:12px 18px; border-radius:10px; margin:15px 0; font-size:0.85rem; color:#86868b; font-weight:600; display:flex; justify-content:space-between; align-items:center;";
             
-            // 安全地把它塞到你的订单预览框（previewTextarea）的上方显示
             if (previewTextarea && previewTextarea.parentNode) {
               previewTextarea.parentNode.insertBefore(financeBox, previewTextarea);
             }
           }
           
-          // 将计算出来的精准成本和运费塞进这个通知条
+          // 渲染：[纯成本数字] | [带$的运费金额] ([单号数]P)
           financeBox.innerHTML = `
-            <span style="color:#1d1d1f;">📊 内部财务对账：</span>
-            <span>💰 成本: <strong style="color:#ff3b30;">¥${totalRmbCost.toFixed(2)}</strong> | 🚚 运费: <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount}个单号)</span>
+            <span style="color:#1d1d1f;">📊 Data Summary:</span>
+            <span>${totalRmbCost.toFixed(2)} | <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount} P)</span>
           `;
 
-          // 8. 刷新预览文本区
-          const orderText = generateOrderString(totalRmbCost, totalUsdShipping, trackingNumCount);
+          // 7. 刷新纯净预览框
+          const orderText = generateOrderString();
           previewTextarea.value = orderText;
         }
 
