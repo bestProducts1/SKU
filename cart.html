@@ -1,305 +1,806 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shopping Cart</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <link rel="icon" type="image/png" href="icon/32.png" />
+    <link rel="apple-touch-icon" href="icon/180.png" />
     <style>
       :root {
-        --primary: #10b981;
-        --primary-hover: #059669;
-        --background: #f9fafb;
-        --surface: #ffffff;
-        --text: #111827;
-        --text-secondary: #4b5563;
-        --border: #e5e7eb;
+        --primary-color: #007aff;
+        --success-color: #34c759;
+        --danger-color: #ff3b30;
+        --bg-color: #f5f5f7;
+        --card-bg: #ffffff;
+        --text-main: #1d1d1f;
+        --text-secondary: #86868b;
       }
+
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background-color: var(--background);
-        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background-color: var(--bg-color);
+        margin: 0;
+        color: var(--text-main);
+        padding-bottom: 240px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* --- 顶部导航 --- */
+      .header {
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 12px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(20px);
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+      .back-link {
+        text-decoration: none;
+        color: var(--primary-color);
+        font-size: 0.95rem;
+        font-weight: 500;
+        padding: 6px 14px;
+        border-radius: 18px;
+        background: rgba(0, 122, 255, 0.1);
+        transition: background 0.2s;
+      }
+      .back-link:hover {
+        background: rgba(0, 122, 255, 0.2);
+      }
+
+      /* --- 购物车网格容器 (紧凑版) --- */
+      .cart-container {
+        max-width: 1200px;
+        margin: 20px auto 10px;
+        padding: 0 20px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 15px;
+      }
+
+      /* --- 商品卡片 (紧凑版) --- */
+      .cart-item {
+        background-color: var(--card-bg);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        display: flex;
+        flex-direction: column;
+        padding: 10px;
+        position: relative;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+        border: 1px solid rgba(0, 0, 0, 0.02);
+      }
+      .cart-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      }
+
+      .cart-item.out-of-stock {
+        opacity: 0.85;
+        border: 1px dashed var(--danger-color);
+      }
+
+      .item-img-wrapper {
+        position: relative;
+        width: 100%;
+        height: 140px;
+        margin-bottom: 10px;
+      }
+
+      .item-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
+        background-color: #f0f0f0;
+      }
+
+      .stock-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: var(--danger-color);
+        font-size: 1.1rem;
+        backdrop-filter: blur(2px);
+        border-radius: 8px;
+        z-index: 5;
+      }
+
+      .item-info {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 100%;
+      }
+
+      .item-info .item-name {
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        font-size: 0.95rem;
+        line-height: 1.3;
+        color: var(--text-main);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 2.5em;
+      }
+
+      .item-supplier {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        background-color: #f2f2f7;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+        width: fit-content;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      /* --- 底部控制区 --- */
+      .item-controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: auto;
+        padding-top: 8px;
+        border-top: 1px solid #f5f5f5;
+      }
+
+      /* --- 数量控制器 (紧凑版) --- */
+      .quantity-controls {
+        display: flex;
+        align-items: center;
+        background-color: #f2f2f7;
+        border-radius: 16px;
+        padding: 2px;
+        width: 100%;
+        justify-content: space-between;
+      }
+      .quantity-controls button {
+        background-color: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.04);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        font-size: 1.1rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-main);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s;
+      }
+      .quantity-controls button:hover {
+        transform: scale(1.05);
+      }
+      .quantity-controls button:active {
+        background-color: #e5e5ea;
+        transform: scale(0.95);
+      }
+      .quantity-controls .quantity {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 8px;
+        min-width: 15px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* --- 删除按钮 (紧凑版) --- */
+      .remove-btn {
+        background: rgba(255, 255, 255, 0.9);
+        color: #ff3b30;
+        border: none;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s;
+        z-index: 10;
+        line-height: 1;
+      }
+      .remove-btn:hover {
+        background-color: #ff3b30;
+        color: white;
+      }
+
+      /* --- 预览区域 --- */
+      .preview-section {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 0 20px;
+      }
+      .preview-card {
+        background-color: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+        border: 1px solid rgba(0, 0, 0, 0.02);
+      }
+      .preview-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        gap: 10px;
+      }
+      .preview-header h3 {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text-main);
+        font-weight: 700;
+      }
+      .live-badge {
+        background-color: var(--success-color);
+        color: white;
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+      }
+      #order-preview-text {
+        width: 100%;
+        height: 180px;
+        padding: 12px;
+        box-sizing: border-box;
+        border: 2px solid #f2f2f7;
+        border-radius: 10px;
+        font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        resize: none;
+        background-color: #fbfbfd;
+        color: #333;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      #order-preview-text:focus {
+        border-color: var(--primary-color);
+        background-color: #fff;
+      }
+
+      /* --- 底部悬浮栏 --- */
+      .cart-summary {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(20px);
+        padding: 15px 30px 25px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.05);
+        z-index: 999;
+      }
+
+      .summary-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      @media (max-width: 768px) {
+        .summary-content {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .cart-container {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+        }
+      }
+
+      .total-wrapper {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .total-label {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+      .total-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: var(--text-main);
+        font-variant-numeric: tabular-nums;
+      }
+      .total-value span {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-left: 2px;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 12px;
+        flex-grow: 1;
+        justify-content: flex-end;
+        max-width: 500px;
+      }
+      .action-btn {
+        padding: 14px 20px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+      .action-btn:active {
+        transform: scale(0.98);
+      }
+
+      .btn-checkout {
+        background-color: #1d1d1f;
+        color: white;
+        flex: 2;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      .btn-checkout:hover {
+        background-color: #000;
+      }
+      .btn-clear {
+        background-color: #fff;
+        color: var(--danger-color);
+        border: 1px solid #e5e5ea;
+        flex: 1;
+      }
+      .btn-clear:hover {
+        background-color: #fff5f5;
+      }
+
+      .empty-cart-message {
+        text-align: center;
+        padding: 80px 20px;
+        color: var(--text-secondary);
+      }
+      .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        display: block;
+        opacity: 0.2;
       }
     </style>
   </head>
-  <body class="pb-32">
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-        <a href="index.html" class="flex items-center text-gray-600 hover:text-emerald-600 transition-colors">
-          <i class="fa-solid fa-arrow-left text-lg mr-2"></i>
-          <span class="font-medium">Continue Shopping</span>
-        </a>
-        <h1 class="text-xl font-bold text-gray-800">Shopping Cart</h1>
-        <button id="clear-cart-btn" class="text-sm font-medium text-red-500 hover:text-red-700 transition-colors flex items-center">
-          <i class="fa-solid fa-trash-can mr-1.5"></i> Clear All
-        </button>
-      </div>
-    </header>
+  <body>
+    <div class="header">
+      <h1>Shopping Cart</h1>
+      <a href="index.html" class="back-link">← Back</a>
+    </div>
 
-    <main class="max-w-4xl mx-auto px-4 py-6">
-      <div id="cart-items-container" class="space-y-4">
+    <div class="cart-container" id="cart-container"></div>
+
+    <div id="empty-cart-msg" class="empty-cart-message" style="display: none">
+      <span class="empty-icon">🛒</span>
+      <p style="font-size: 1.2rem; margin-bottom: 20px; font-weight: 500">
+        Your cart is empty
+      </p>
+      <a
+        href="index.html"
+        class="action-btn btn-checkout"
+        style="
+          text-decoration: none;
+          display: inline-flex;
+          width: auto;
+          padding: 10px 25px;
+        "
+        >Go Shopping</a
+      >
+    </div>
+
+    <div class="preview-section" id="preview-section" style="display: none">
+      <div class="preview-card">
+        <div class="preview-header">
+          <h3>Order Preview</h3>
+          <span class="live-badge">LIVE</span>
+        </div>
+        <textarea
+          id="order-preview-text"
+          readonly
+          placeholder="Order text will appear here..."
+        ></textarea>
+        <p
+          style="
+            font-size: 0.8rem;
+            color: #86868b;
+            margin: 8px 0 0;
+            text-align: right;
+          "
+        >
+          *Ready to copy
+        </p>
+      </div>
+    </div>
+
+    <div class="cart-summary" id="cart-summary" style="display: none">
+      <div class="summary-content">
+        <div class="total-wrapper">
+          <span class="total-label">Total:</span>
+          <div class="total-value" id="total-qty-display">
+            0 <span>items</span>
+          </div>
         </div>
 
-      <div id="empty-cart-state" class="hidden py-16 text-center">
-        <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-content-center mx-auto mb-4">
-          <i class="fa-solid fa-basket-shopping text-4xl text-gray-400"></i>
-        </div>
-        <h3 class="text-lg font-medium text-gray-900 mb-1">Your cart is empty</h3>
-        <p class="text-gray-500 mb-6 text-sm">Add some products from the shop to view them here.</p>
-        <a href="index.html" class="inline-flex items-center justify-content-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl shadow-sm transition-colors">
-          Go To Shop
-        </a>
-      </div>
-
-      <div id="order-preview-section" class="mt-8 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-md font-semibold text-gray-800 flex items-center">
-            <i class="fa-solid fa-file-text text-emerald-600 mr-2"></i> Order Preview
-          </h2>
-          <button id="copy-order-btn" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all active:scale-95">
-            <i class="fa-solid fa-copy mr-1.5"></i> Copy Order
+        <div class="button-row">
+          <button class="action-btn btn-clear" id="clear-cart-btn">
+            Clear
+          </button>
+          <button class="action-btn btn-checkout" id="checkout-btn">
+            <span>📋</span> Copy Order
           </button>
         </div>
-        <textarea id="order-preview-text" readonly rows="8" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm font-mono text-gray-700 focus:outline-none resize-none"></textarea>
-      </div>
-    </main>
-
-    <div id="checkout-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-40">
-      <div class="max-w-4xl mx-auto px-4 h-20 flex items-center justify-between">
-        <div>
-          <p id="total-qty-display" class="text-lg font-bold text-gray-900 flex items-center">
-            0 <span>items</span>
-          </p>
-          <p class="text-xs text-gray-500 mt-0.5">Estimated shipping included</p>
-        </div>
-        <button id="whatsapp-checkout-btn" class="inline-flex items-center justify-content-center px-6 h-12 bg-[#25D366] hover:bg-[#20ba5a] text-white font-medium rounded-xl shadow-md transition-all active:scale-95">
-          <i class="fa-brands fa-whatsapp text-xl mr-2"></i> Checkout via WhatsApp
-        </button>
       </div>
     </div>
 
     <script>
-      let cartItems = [];
-      const cartItemsContainer = document.getElementById("cart-items-container");
-      const emptyCartState = document.getElementById("empty-cart-state");
-      const orderPreviewSection = document.getElementById("order-preview-section");
-      const checkoutBar = document.getElementById("checkout-bar");
-      const totalQtyDisplay = document.getElementById("total-qty-display");
-      const previewTextarea = document.getElementById("order-preview-text");
-      const copyOrderBtn = document.getElementById("copy-order-btn");
-      const whatsappCheckoutBtn = document.getElementById("whatsapp-checkout-btn");
-      const clearCartBtn = document.getElementById("clear-cart-btn");
+      document.addEventListener("DOMContentLoaded", () => {
+        const cartContainer = document.getElementById("cart-container");
+        const cartSummary = document.getElementById("cart-summary");
+        const previewSection = document.getElementById("preview-section");
+        const previewTextarea = document.getElementById("order-preview-text");
+        const totalQtyDisplay = document.getElementById("total-qty-display");
+        const checkoutBtn = document.getElementById("checkout-btn");
+        const clearCartBtn = document.getElementById("clear-cart-btn");
+        const emptyCartMsg = document.getElementById("empty-cart-msg");
+        let cartItems = [];
 
-      // Load cart from LocalStorage
-      function loadCartFromLocalStorage() {
-        try {
-          const stored = localStorage.getItem("perfume_cart");
-          cartItems = stored ? JSON.parse(stored) : [];
-        } catch (e) {
-          console.error("Error reading cart from localStorage", e);
-          cartItems = [];
+        function loadCart() {
+          const storedCart = localStorage.getItem("perfumeCart");
+          cartItems = storedCart ? JSON.parse(storedCart) : [];
         }
-      }
 
-      // Save cart to LocalStorage
-      function saveCartToLocalStorage() {
-        localStorage.setItem("perfume_cart", JSON.stringify(cartItems));
-      }
+        function saveCart() {
+          localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
+        }
 
-      // 【核心修改】计算含有精密运费规则和谷歌表格人民币成本的财务对账刷新逻辑
-      function updatePageState() {
-        const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+        // --- 【核心修改】计算含有阶梯折扣的最终总价 ---
+     function generateOrderString(rmbCost, usdShipping, trackingCount) {
+          if (cartItems.length === 0) return "";
 
-        // 1. 初始化财务对账数据
-        let totalWeight = 0;
-        let totalRmbCost = 0; // 总成本（人民币）
+          // 1. 循环提取购物车中每一项，优先使用英文名/SKU，紧跟 * 数量
+          const itemLines = cartItems.map((item) => {
+            const displayName = item.sku || item.name;
+            return `${displayName}*${item.quantity}`;
+          });
 
-        cartItems.forEach((item) => {
-          // 智能判定是否为套盒（标题包含“套盒”或“Set”）
-          const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
+          let resultText = itemLines.join("\n");
+
+          // 2. 在纯净订单文本的最末尾另起一行，追加只有你能看懂的财务小尾巴
+          resultText += `\n\n[财务对账：成本 ¥${rmbCost.toFixed(1)} / 运费 $${usdShipping.toFixed(1)} / 单号 ${trackingCount}个]`;
           
-          // 严格执行你的重量规则：套盒 4 磅，普通香水 1.2 磅
-          if (isSet) {
-            totalWeight += 4 * item.quantity;
-          } else {
-            totalWeight += 1.2 * item.quantity; 
+          return resultText;
+        }
+
+       function updatePageState() {
+          // 1. 计算商品总件数
+          const totalQty = cartItems.reduce(
+            (sum, item) => sum + item.quantity,
+            0,
+          );
+
+          // 2. 初始化重量和人民币成本
+          let totalWeight = 0;
+          let totalRmbCost = 0; // 总成本（人民币）
+
+          cartItems.forEach((item) => {
+            // 智能判定是否为套盒（只要标题包含“套盒”或英文“Set”就判定为套盒）
+            const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
+            
+            // 严格执行你的重量规则：套盒 4 磅，普通香水 1.2 磅
+            if (isSet) {
+              totalWeight += 4 * item.quantity;
+            } else {
+              totalWeight += 1.2 * item.quantity; 
+            }
+
+            // 自动从你的谷歌表格里抓取小写表头叫 cost 的拿货价
+            const unitCost = Number(item.cost) || 0;
+            totalRmbCost += unitCost * item.quantity;
+          });
+
+          // 3. 智能判定物流单号数量（超过40只发2个单号，超过80只发3个单号）
+          let trackingNumCount = 1;
+          if (totalQty > 80) {
+            trackingNumCount = 3;
+          } else if (totalQty > 40) {
+            trackingNumCount = 2;
           }
 
-          // 自动从你的谷歌表格里抓取表头叫 cost 的拿货价属性（乘以对应的加购数量）
-          const unitCost = Number(item.cost) || 0;
-          totalRmbCost += unitCost * item.quantity;
-        });
-
-        // 2. 智能判定物流单号数量（超过40发2个，超过80发3个）
-        let trackingNumCount = 1;
-        if (totalQty > 80) {
-          trackingNumCount = 3;
-        } else if (totalQty > 40) {
-          trackingNumCount = 2;
-        }
-
-        // 3. 严格执行最新的核心物流计费规则（首3磅固定 $11，续磅每磅加 $1）
-        let baseShipping = 0;
-        if (totalWeight > 0) {
-          let roundedWeight = Math.ceil(totalWeight); // 货代传统：不足1磅按1磅算（向上取整）
-          
-          if (roundedWeight <= 3) {
-            baseShipping = 11; // 1-3 磅统一收 $11
-          } else if (roundedWeight <= 20) {
-            baseShipping = 11 + (roundedWeight - 3) * 1; // 4-20 磅，每多1磅加$1
-          } else {
-            baseShipping = 28 + (roundedWeight - 20) * 1; // 超过20 磅的冗余防呆防断档安全公式
+          // 4. 严格执行最新的阶梯物流费规则（首3磅固定 $11，续磅每多1磅加 $1）
+          let baseShipping = 0;
+          if (totalWeight > 0) {
+            let roundedWeight = Math.ceil(totalWeight); // 货代传统：不足1磅按1磅算（向上取整）
+            
+            if (roundedWeight <= 3) {
+              baseShipping = 11; // 1-3 磅统一收 $11
+            } else {
+              baseShipping = 11 + (roundedWeight - 3) * 1; // 4磅及以上，每多1磅加$1（例如12磅 = 11 + 9 = $20）
+            }
           }
-        }
 
-        // 4. 精算仓库代发费用（首支操作费 $0.8，续支手续费 $0.3，1支包装费 $0.7，2支及以上包装费 $1.5）
-        let warehouseFee = 0;
-        if (totalQty > 0) {
-          warehouseFee += 0.8 + (totalQty - 1) * 0.3;
-          warehouseFee += (totalQty === 1) ? 0.7 : 1.5;
-        }
+          // 5. 精算仓库代发费用
+          let warehouseFee = 0;
+          if (totalQty > 0) {
+            // 操作费 + 手续费：首支操作费 $0.8，后续每支续支手续费 $0.3
+            warehouseFee += 0.8 + (totalQty - 1) * 0.3;
+            // 包装费：只有1支收 $0.7，2支及以上收 $1.5
+            warehouseFee += (totalQty === 1) ? 0.7 : 1.5;
+          }
 
-        // 最终总运费 = 纯物流费 + 仓库代发费
-        const totalUsdShipping = baseShipping + warehouseFee;
+          // 最终总运费 = 纯物流费 + 仓库代发费
+          const totalUsdShipping = baseShipping + warehouseFee;
 
-        // 5. 让红框处高亮完美显示这一单独享的财务对账数据
-        let financeNotice = ` | 💰 成本: ¥${totalRmbCost.toFixed(2)} | 🚚 运费: $${totalUsdShipping.toFixed(2)} (${trackingNumCount}个单号)`;
-        totalQtyDisplay.innerHTML = `${totalQty} <span>items</span> <span style="font-size:0.85rem; color:#ff9800; margin-left:8px; font-weight:bold;">${financeNotice}</span>`;
+          // 6. 恢复你原版代码里的 items 数量显示（确保原版底栏完全不报错、不白屏）
+          totalQtyDisplay.innerHTML = `${totalQty} <span>items</span>`;
 
-        // 6. 同步给预览区和复制按钮
-        const orderText = generateOrderString(totalRmbCost, totalUsdShipping, trackingNumCount);
-        previewTextarea.value = orderText;
-      }
-
-      // 【核心修改】同步让一键复制出来的订单数据最底下追加一行财务痕迹
-      function generateOrderString(rmbCost, usdShipping, trackingCount) {
-        if (cartItems.length === 0) return "";
-
-        // 保持你要求的纯净换行格式，没有任何加号和多余干扰
-        const itemLines = cartItems.map((item) => {
-          const displayName = item.sku || item.name;
-          return `${displayName}*${item.quantity}`;
-        });
-
-        let resultText = itemLines.join("\n");
-
-        // 在末尾另起一行追加内部专属财务对账尾巴
-        resultText += `\n\n[财务对账：成本 ¥${rmbCost.toFixed(1)} / 运费 $${usdShipping.toFixed(1)} / 单号 ${trackingCount}个]`;
-        
-        return resultText;
-      }
-
-      // Render Cart UI List
-      function renderCart() {
-        if (cartItems.length === 0) {
-          cartItemsContainer.innerHTML = "";
-          emptyCartState.classList.remove("hidden");
-          orderPreviewSection.classList.add("hidden");
-          checkoutBar.classList.add("hidden");
-          clearCartBtn.classList.add("hidden");
-          return;
-        }
-
-        emptyCartState.classList.add("hidden");
-        orderPreviewSection.classList.remove("hidden");
-        checkoutBar.classList.remove("hidden");
-        clearCartBtn.classList.remove("hidden");
-
-        let html = "";
-        cartItems.forEach((item, index) => {
-          html += `
-            <div class="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-              <div class="flex items-center space-x-4">
-                <img src="${item.img || 'placeholder.jpg'}" alt="${item.name}" class="w-16 h-16 object-contain rounded-xl bg-gray-50 border border-gray-100 p-1" onerror="this.src='https://placehold.co/100x100?text=Perfume'">
-                <div>
-                  <h3 class="font-bold text-gray-900 text-sm md:text-base">${item.sku || item.name}</h3>
-                  <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${item.caption || ''}</p>
-                </div>
-              </div>
-              <div class="flex items-center space-x-4">
-                <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-1 py-1">
-                  <button onclick="changeQty(${index}, -1)" class="w-8 h-8 flex items-center justify-content-center text-gray-500 hover:text-emerald-600 transition-colors rounded-lg hover:bg-white">
-                    <i class="fa-solid fa-minus text-xs"></i>
-                  </button>
-                  <span class="w-8 text-center font-semibold text-sm text-gray-800">${item.quantity}</span>
-                  <button onclick="changeQty(${index}, 1)" class="w-8 h-8 flex items-center justify-content-center text-gray-500 hover:text-emerald-600 transition-colors rounded-lg hover:bg-white">
-                    <i class="fa-solid fa-plus text-xs"></i>
-                  </button>
-                </div>
-                <button onclick="removeItem(${index})" class="text-gray-400 hover:text-red-500 transition-colors p-2">
-                  <i class="fa-solid fa-trash-can"></i>
-                </button>
-              </div>
-            </div>
+          // 7. 【绝对防崩溃设计】在页面上动态长出一个属于你的内部财务对账通知条
+          let financeBox = document.getElementById("internal-finance-box");
+          if (!financeBox) {
+            financeBox = document.createElement("div");
+            financeBox.id = "internal-finance-box";
+            // 使用完全符合你原版网页苹果极简风的灰色调样式
+            financeBox.style.cssText = "background:#fbfbfd; border:1px solid #e5e5ea; padding:12px 18px; border-radius:10px; margin:15px 0; font-size:0.85rem; color:#86868b; font-weight:600; display:flex; justify-content:space-between; align-items:center;";
+            
+            // 安全地把它塞到你的订单预览框（previewTextarea）的上方显示
+            if (previewTextarea && previewTextarea.parentNode) {
+              previewTextarea.parentNode.insertBefore(financeBox, previewTextarea);
+            }
+          }
+          
+          // 将计算出来的精准成本和运费塞进这个通知条
+          financeBox.innerHTML = `
+            <span style="color:#1d1d1f;">📊 内部财务对账：</span>
+            <span>💰 成本: <strong style="color:#ff3b30;">¥${totalRmbCost.toFixed(2)}</strong> | 🚚 运费: <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount}个单号)</span>
           `;
-        });
 
-        cartItemsContainer.innerHTML = html;
-        updatePageState();
-      }
-
-      // Quantity adjustments
-      window.changeQty = function(index, change) {
-        cartItems[index].quantity += change;
-        if (cartItems[index].quantity <= 0) {
-          cartItems.splice(index, 1);
+          // 8. 刷新预览文本区
+          const orderText = generateOrderString(totalRmbCost, totalUsdShipping, trackingNumCount);
+          previewTextarea.value = orderText;
         }
-        saveCartToLocalStorage();
-        renderCart();
-      };
 
-      // Remove specific item
-      window.removeItem = function(index) {
-        cartItems.splice(index, 1);
-        saveCartToLocalStorage();
-        renderCart();
-      };
+        window.renderCart = function () {
+          if (window.perfumeDB && window.perfumeDB.length > 0) {
+            let dataUpdated = false;
 
-      // Clear all items
-      clearCartBtn.addEventListener("click", () => {
-        if (confirm("Are you sure you want to clear your entire cart?")) {
-          cartItems = [];
-          saveCartToLocalStorage();
+            cartItems.forEach((item) => {
+              const freshProduct = window.perfumeDB.find(
+                (p) => p.id === item.name,
+              );
+
+              if (freshProduct) {
+                if (freshProduct.sku && item.sku !== freshProduct.sku) {
+                  item.sku = freshProduct.sku;
+                  dataUpdated = true;
+                }
+                if (
+                  freshProduct.supplier &&
+                  item.supplier !== freshProduct.supplier
+                ) {
+                  item.supplier = freshProduct.supplier;
+                  dataUpdated = true;
+                }
+                if (freshProduct.img && item.img !== freshProduct.img) {
+                  item.img = freshProduct.img;
+                  dataUpdated = true;
+                }
+                if (
+                  freshProduct.price !== undefined &&
+                  item.price !== freshProduct.price
+                ) {
+                  item.price = Number(freshProduct.price);
+                  dataUpdated = true;
+                }
+                const newCaption = `${freshProduct.id} - ${freshProduct.name}`;
+                if (item.caption !== newCaption) {
+                  item.caption = newCaption;
+                  dataUpdated = true;
+                }
+                if (
+                  freshProduct.stock !== undefined &&
+                  item.stock !== freshProduct.stock
+                ) {
+                  item.stock = freshProduct.stock;
+                  dataUpdated = true;
+                }
+              }
+            });
+
+            if (dataUpdated) {
+              console.log("🔄 Cart data synced with latest database.");
+              saveCart();
+            }
+          }
+
+          cartContainer.innerHTML = "";
+
+          if (cartItems.length === 0) {
+            cartSummary.style.display = "none";
+            previewSection.style.display = "none";
+            emptyCartMsg.style.display = "block";
+            return;
+          }
+
+          cartSummary.style.display = "block";
+          previewSection.style.display = "block";
+          emptyCartMsg.style.display = "none";
+
+          cartItems.forEach((item) => {
+            const itemEl = document.createElement("div");
+            itemEl.className = "cart-item";
+            itemEl.dataset.name = item.name;
+
+            const isOutOfStock =
+              item.stock !== undefined && Number(item.stock) <= 0;
+
+            if (isOutOfStock) {
+              itemEl.classList.add("out-of-stock");
+            }
+
+            const displayName = item.sku || item.caption || item.name;
+            const displaySupplier = item.supplier || "Unknown";
+
+            itemEl.innerHTML = `
+              <button class="remove-btn" title="Remove item">&times;</button>
+              
+              <div class="item-img-wrapper">
+                <img src="${item.img}" alt="${displayName}" class="item-img" onerror="this.src='placeholder.png'" />
+                ${isOutOfStock ? '<div class="stock-overlay">缺货 (Stock: 0)</div>' : ""}
+              </div>
+              
+              <div class="item-info">
+                <p class="item-name" title="${displayName}">${displayName}</p>
+                <span class="item-supplier">${displaySupplier}</span>
+              </div>
+              
+              <div class="item-controls">
+                 <div class="quantity-controls">
+                    <button class="decrease-btn" data-action="decrease" ${
+                      item.quantity <= 1 ? 'style="opacity: 0.3;"' : ""
+                    }>-</button>
+                    <span class="quantity">${item.quantity}</span>
+                    <button class="increase-btn" data-action="increase">+</button>
+                  </div>
+              </div>
+            `;
+            cartContainer.appendChild(itemEl);
+          });
+
+          updatePageState();
+        };
+
+        function updateQuantity(name, action) {
+          const item = cartItems.find((i) => i.name === name);
+          if (!item) return;
+
+          if (action === "increase") {
+            item.quantity++;
+          } else if (action === "decrease") {
+            item.quantity--;
+          }
+
+          if (item.quantity <= 0) {
+            cartItems = cartItems.filter((i) => i.name !== name);
+          }
+          saveCart();
           renderCart();
         }
-      });
 
-      // Copy Order function
-      copyOrderBtn.addEventListener("click", () => {
-        previewTextarea.select();
-        previewTextarea.setSelectionRange(0, 99999);
-        try {
-          document.execCommand("copy");
-          const originalText = copyOrderBtn.innerHTML;
-          copyOrderBtn.innerHTML = `<i class="fa-solid fa-check mr-1.5"></i> Copied!`;
-          copyOrderBtn.classList.remove("bg-emerald-600", "hover:bg-emerald-700");
-          copyOrderBtn.classList.add("bg-gray-800");
-          setTimeout(() => {
-            copyOrderBtn.innerHTML = originalText;
-            copyOrderBtn.classList.add("bg-emerald-600", "hover:bg-emerald-700");
-            copyOrderBtn.classList.remove("bg-gray-800");
-          }, 2000);
-        } catch (err) {
-          alert("Failed to copy order text.");
-        }
-      });
+        cartContainer.addEventListener("click", (e) => {
+          if (e.target.closest(".remove-btn")) {
+            const itemEl = e.target.closest(".cart-item");
+            if (!itemEl) return;
+            const name = itemEl.dataset.name;
 
-      // Checkout via WhatsApp
-      whatsappCheckoutBtn.addEventListener("click", () => {
-        const orderStr = previewTextarea.value;
-        if (!orderStr) return;
-        const encodedText = encodeURIComponent(orderStr);
-        // Using your hardcoded WhatsApp number channel
-        window.open(`https://wa.me/19092497184?text=${encodedText}`, "_blank");
-      });
+            if (confirm("Remove this item?")) {
+              cartItems = cartItems.filter((i) => i.name !== name);
+              saveCart();
+              renderCart();
+            }
+            return;
+          }
 
-      // Init Load
-      loadCartFromLocalStorage();
-      renderCart();
+          const target = e.target.closest("button");
+          if (!target) return;
+
+          const itemEl = target.closest(".cart-item");
+          if (!itemEl) return;
+          const name = itemEl.dataset.name;
+
+          if (target.classList.contains("increase-btn")) {
+            updateQuantity(name, "increase");
+          } else if (target.classList.contains("decrease-btn")) {
+            updateQuantity(name, "decrease");
+          }
+        });
+
+        checkoutBtn.addEventListener("click", () => {
+          if (cartItems.length === 0) return;
+
+          const orderText = previewTextarea.value;
+
+          if (navigator.clipboard) {
+            navigator.clipboard
+              .writeText(orderText)
+              .then(() => {
+                const originalText = checkoutBtn.innerHTML;
+                checkoutBtn.innerHTML = "<span>✅</span> Copied!";
+                checkoutBtn.style.backgroundColor = "#34c759";
+                checkoutBtn.style.color = "#fff";
+                setTimeout(() => {
+                  checkoutBtn.innerHTML = originalText;
+                  checkoutBtn.style.backgroundColor = "";
+                  checkoutBtn.style.color = "";
+                }, 2000);
+              })
+              .catch(() => {
+                previewTextarea.select();
+                document.execCommand("copy");
+                alert("Copied failed. Please copy text manually.");
+              });
+          } else {
+            previewTextarea.select();
+            document.execCommand("copy");
+            alert("Copied! If not, copy manually.");
+          }
+        });
+
+        clearCartBtn.addEventListener("click", () => {
+          if (confirm("Are you sure you want to clear everything?")) {
+            cartItems = [];
+            saveCart();
+            renderCart();
+          }
+        });
+
+        // Initial Load
+        loadCart();
+        renderCart();
+      });
     </script>
+    <script src="db.js"></script>
   </body>
 </html>
