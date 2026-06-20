@@ -60,7 +60,7 @@
         background: rgba(0, 122, 255, 0.2);
       }
 
-      /* --- 购物车网格容器 (紧凑版) --- */
+      /* --- 购物车网格容器 --- */
       .cart-container {
         max-width: 1200px;
         margin: 20px auto 10px;
@@ -70,7 +70,7 @@
         gap: 15px;
       }
 
-      /* --- 商品卡片 (紧凑版) --- */
+      /* --- 商品卡片 --- */
       .cart-item {
         background-color: var(--card-bg);
         border-radius: 12px;
@@ -170,7 +170,7 @@
         border-top: 1px solid #f5f5f5;
       }
 
-      /* --- 数量控制器 (紧凑版) --- */
+      /* --- 数量控制器 --- */
       .quantity-controls {
         display: flex;
         align-items: center;
@@ -212,7 +212,7 @@
         font-variant-numeric: tabular-nums;
       }
 
-      /* --- 删除按钮 (紧凑版) --- */
+      /* --- 删除按钮 --- */
       .remove-btn {
         background: rgba(255, 255, 255, 0.9);
         color: #ff3b30;
@@ -497,11 +497,10 @@
           localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
         }
 
-        // --- 【已修复】干净无财务尾巴的导出格式生成 ---
+        // --- 干净无财务尾巴的导出格式生成 ---
         function generateOrderString() {
           if (cartItems.length === 0) return "";
 
-          // 严格满足要求4：一键复制出来的订单文本只包含纯净的“商品*数量”，绝不夹带任何财务信息
           const itemLines = cartItems.map((item) => {
             const displayName = item.sku || item.name;
             return `${displayName}*${item.quantity}`;
@@ -510,14 +509,13 @@
           return itemLines.join("\n");
         }
 
-        // --- 【已修复】盲打式数字对账看板刷新逻辑 ---
+        // --- 盲打式数字对账看板刷新逻辑 ---
         function updatePageState() {
           const totalQty = cartItems.reduce(
             (sum, item) => sum + item.quantity,
             0,
           );
 
-          // 1. 自动从谷歌表格同步过来的 cost 列中提取金额并累加
           let totalWeight = 0;
           let totalRmbCost = 0; 
 
@@ -529,9 +527,15 @@
               totalWeight += 1.2 * item.quantity; 
             }
 
-            // 读取加购项的实际 cost
-            const unitCost = Number(item.cost) || 0;
-            totalRmbCost += unitCost * item.quantity;
+            // ⭐【绝对穿透补救】：无论缓存怎么被阻断，计算时强制现场击穿读取最新的实时全局 window.perfumeDB 对象
+            let directCost = Number(item.cost) || 0;
+            if (directCost === 0 && window.perfumeDB && window.perfumeDB.length > 0) {
+              const matchedProduct = window.perfumeDB.find(p => p.id === item.name);
+              if (matchedProduct && matchedProduct.cost) {
+                directCost = Number(matchedProduct.cost) || 0;
+              }
+            }
+            totalRmbCost += directCost * item.quantity;
           });
 
           // 2. 智能判定物流单号数量
@@ -562,15 +566,14 @@
 
           const totalUsdShipping = baseShipping + warehouseFee;
 
-          // 5. 保持原版底栏 items 数量正常显示，消灭未定义爆红
+          // 5. 保持原版底栏 items 数量正常显示
           totalQtyDisplay.innerHTML = `${totalQty} <span>items</span>`;
 
-          // 6. 严格满足要求2和3：不显示“财务/成本/运费/￥”，只有你能看懂的纯粹极简盲打数字条
+          // 6. 隐蔽式极简财务条，不显示敏感中文及货币符号
           let financeBox = document.getElementById("internal-finance-box");
           if (!financeBox) {
             financeBox = document.createElement("div");
             financeBox.id = "internal-finance-box";
-            // 完美匹配原版苹果极简风
             financeBox.style.cssText = "background:#fbfbfd; border:1px solid #e5e5ea; padding:12px 18px; border-radius:10px; margin:15px 0; font-size:0.85rem; color:#86868b; font-weight:600; display:flex; justify-content:space-between; align-items:center;";
             
             if (previewTextarea && previewTextarea.parentNode) {
@@ -578,13 +581,11 @@
             }
           }
           
-          // 渲染：[纯成本数字] | [带$的运费金额] ([单号数]P)
           financeBox.innerHTML = `
             <span style="color:#1d1d1f;">📊 Data Summary:</span>
             <span>${totalRmbCost.toFixed(2)} | <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount} P)</span>
           `;
 
-          // 7. 刷新纯净预览框
           const orderText = generateOrderString();
           previewTextarea.value = orderText;
         }
@@ -619,6 +620,11 @@
                   item.price !== freshProduct.price
                 ) {
                   item.price = Number(freshProduct.price);
+                  dataUpdated = true;
+                }
+                // ⭐【强制融合漏洞修复】：同步新数据库资产属性，让 cost 字段在渲染刷新时可以越过 CSV 限制直接写入 LocalStorage
+                if (freshProduct.cost !== undefined && item.cost !== freshProduct.cost) {
+                  item.cost = freshProduct.cost;
                   dataUpdated = true;
                 }
                 const newCaption = `${freshProduct.id} - ${freshProduct.name}`;
@@ -783,7 +789,6 @@
           }
         });
 
-        // Initial Load
         loadCart();
         renderCart();
       });
