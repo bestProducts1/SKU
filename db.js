@@ -3,10 +3,9 @@
 // ==========================================
 
 // !!! 请替换成你第一步里复制的 Google Sheet CSV 链接 !!!
+// !!! 官方标准的纯 CSV 数据流通道，绝无网页代码干扰 !!!
 const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?gid=0&single=true&output=csv";
-
-// 缓存时间：5分钟 (300000毫秒)
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?gid=0&single=true&output=csv";// 缓存时间：5分钟 (300000毫秒)
 const CACHE_DURATION = 5 * 60 * 1000;
 
 // 全局变量，用来存放数据
@@ -81,16 +80,24 @@ function runPageLogic() {
 }
 
 // --- 工具：CSV 解析器（清洗行尾不可见换行符） ---
+// --- 工具：CSV 解析器（强制兜底位置不讲道理版） ---
 function parseCSV(csvText) {
-  // 核心清洗：统一清除表格末尾可能导致最后一列失效的各种干扰换行符
   const cleanCsvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = cleanCsvText.trim().split("\n");
   
-  // 强制全小写表头，绝不让大小写影响数据识别
   const headers = lines[0]
     .trim()
     .split(",")
     .map((h) => h.trim().toLowerCase());
+
+  // 🔍 现场精准定位你的 cost 在哪一列
+  let costIndex = headers.indexOf("cost");
+  // ⭐【强行绝杀】：如果你谷歌表格表头因为各种原因没有被认成小写"cost"，那我们就强行数格子！
+  // 在你的表格里：A=id, B=name, C=brand, D=img, E=stock, F=inventory, G=price, H=sku, I=ml, J=new, K=gender, L=notes, M=top, N=cost
+  // N 刚好是第 14 列，也就是索引号 13。如果在表头找不到，我们强制用第14列作为 cost！
+  if (costIndex === -1) {
+    costIndex = 13; 
+  }
 
   return lines
     .slice(1)
@@ -102,19 +109,25 @@ function parseCSV(csvText) {
 
       headers.forEach((header, index) => {
         let val = values[index] ? values[index].trim() : "";
-        
-        // ⭐【数智化漏洞修复】：将价格、库存以及全新添加的成本列一并强行剥离格式转化为数字
-        if (header === "price" || header === "stock" || header === "cost") {
+        if (header === "price" || header === "stock") {
           val = val ? Number(val) : 0;
-          if (isNaN(val)) val = 0; // 过滤非数字干扰
         }
         obj[header] = val;
       });
+
+      // 💥 无论表头叫什么名字，强制把第14列的数据洗净、转成数字，塞给 obj.cost！
+      if (values[costIndex] !== undefined) {
+        let rawCost = values[costIndex].trim();
+        let parsedCost = Number(rawCost);
+        obj["cost"] = isNaN(parsedCost) ? 0 : parsedCost;
+      } else {
+        obj["cost"] = 0;
+      }
+
       return obj;
     })
     .filter((item) => item !== null);
 }
-
 // ==========================================
 // 供应商判断逻辑
 // ==========================================
