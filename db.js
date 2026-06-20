@@ -1,5 +1,5 @@
 // ==========================================
-// db.js - 产品数据管理中心 (带缓存功能)
+// db.js - 产品数据管理中心 (满血修复最后一列成本换行符漏洞版)
 // ==========================================
 
 // !!! 请替换成你第一步里复制的 Google Sheet CSV 链接 !!!
@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initProductData() {
   const cacheKey = "perfumeDB_Data_v2";
-const timeKey = "perfumeDB_Time_v2";
+  const timeKey = "perfumeDB_Time_v2";
   const now = new Date().getTime();
   const cachedTime = localStorage.getItem(timeKey);
   const cachedData = localStorage.getItem(cacheKey);
@@ -34,7 +34,6 @@ const timeKey = "perfumeDB_Time_v2";
   // 2. 没有缓存或已过期：去 Google 下载
   console.log("🌐 (Network) 从 Google Sheet 下载最新数据...");
 
-  // 如果是 index.html，可以在这里显示个简单的 loading
   const gallery =
     document.getElementById("perfume-list") ||
     document.getElementById("gallery");
@@ -61,7 +60,6 @@ const timeKey = "perfumeDB_Time_v2";
     runPageLogic(); // 启动页面渲染
   } catch (error) {
     console.error("下载失败:", error);
-    // 失败回退：如果有旧缓存，就用旧的
     if (cachedData) {
       window.perfumeDB = JSON.parse(cachedData);
       runPageLogic();
@@ -74,23 +72,25 @@ const timeKey = "perfumeDB_Time_v2";
 
 // --- 页面渲染分发器 ---
 function runPageLogic() {
-  // 如果是首页 (有 renderPerfumes 函数)
   if (typeof renderPerfumes === "function") {
     renderPerfumes();
   }
-  // 如果是购物车页 (有 renderCart 函数)
   if (typeof renderCart === "function") {
     renderCart();
   }
 }
 
-// --- 工具：CSV 解析器 ---
+// --- 工具：CSV 解析器（清洗行尾不可见换行符） ---
 function parseCSV(csvText) {
-  const lines = csvText.trim().split("\n");
+  // 核心清洗：统一清除表格末尾可能导致最后一列失效的各种干扰换行符
+  const cleanCsvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = cleanCsvText.trim().split("\n");
+  
+  // 强制全小写表头，绝不让大小写影响数据识别
   const headers = lines[0]
     .trim()
     .split(",")
-    .map((h) => h.trim());
+    .map((h) => h.trim().toLowerCase());
 
   return lines
     .slice(1)
@@ -102,8 +102,11 @@ function parseCSV(csvText) {
 
       headers.forEach((header, index) => {
         let val = values[index] ? values[index].trim() : "";
-        if (header === "price" || header === "stock") {
-          val = Number(val);
+        
+        // ⭐【数智化漏洞修复】：将价格、库存以及全新添加的成本列一并强行剥离格式转化为数字
+        if (header === "price" || header === "stock" || header === "cost") {
+          val = val ? Number(val) : 0;
+          if (isNaN(val)) val = 0; // 过滤非数字干扰
         }
         obj[header] = val;
       });
@@ -113,16 +116,12 @@ function parseCSV(csvText) {
 }
 
 // ==========================================
-// 修改后的供应商判断逻辑 (包含最新规则)
+// 供应商判断逻辑
 // ==========================================
 function getSupplier(sku) {
-  // 0. 兜底保护
   if (!sku) return "供应商二";
+  const s = String(sku);
 
-  const s = String(sku); // 转字符串防止报错
-
-  // 1. 规则: 1Z开头 或 特定例外 -> 供应商五
-  // 包含: 1znvyou100, AMXS-01, DMXS-003
   if (
     s.startsWith("1Z") ||
     s === "1znvyou100" ||
@@ -132,20 +131,12 @@ function getSupplier(sku) {
     return "供应商五";
   }
 
-  // 2. 规则: H开头 + 数字 -> 供应商三
   if (/^H\d+/.test(s)) return "供应商三";
-
-  // 3. 规则: A开头 + 数字 -> 供应商一
-  // (注意：AMXS-01 虽然A开头，但在上面第1条规则已被截获为供应商五，不会冲突)
   if (/^A\d+/.test(s)) return "供应商一";
 
-  // 4. 规则: 全小写且带横杠 (如 lattafa-zi) 或 特定例外 -> 供应商四
-  // 正则 /^[a-z-]+$/ 确保不包含大写字母
   if ((/^[a-z-]+$/.test(s) && s.includes("-")) || s === "kh-QAHWA") {
     return "供应商四";
   }
 
-  // 5. 规则: 其他所有 -> 供应商二
-  // (包括中文名、纯数字如1001、T开头、(美中)结尾等)
   return "供应商二";
 }
