@@ -71,26 +71,64 @@ function runPageLogic() {
   if (typeof renderCart === "function") renderCart();
 }
 
+// --- 工具：CSV 解析器（全自动 200+ SKU 精准切分版） ---
 function parseCSV(csvText) {
+  // 1. 处理所有换行符，切分成行
   const cleanCsvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = cleanCsvText.trim().split("\n");
-  const headers = lines[0].trim().split(",").map((h) => h.trim().toLowerCase());
+  
+  if (lines.length < 2) return [];
 
-  return lines.slice(1).map((line) => {
-    const values = line.split(",");
-    const obj = {};
-    if (values.length < headers.length) return null;
-    headers.forEach((header, index) => {
-      let val = values[index] ? values[index].trim() : "";
-      if (header === "price" || header === "stock") {
-        val = Number(val) || 0;
+  // 2. 提取并洗净表头
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().toLowerCase());
+
+  // 3. 精准定位 cost 列的索引
+  const costIndex = headers.indexOf("cost");
+
+  return lines
+    .slice(1)
+    .map((line) => {
+      // ⭐ 核心修复：防止有的行末尾空列导致被直接腰斩切断
+      // 强制使用与表头完全相同的长度来切分，确保第 14 列之后的 cost 不会丢失
+      const values = [];
+      let currentIdx = 0;
+      
+      for (let i = 0; i < headers.length; i++) {
+        const nextComma = line.indexOf(",", currentIdx);
+        if (nextComma === -1) {
+          values.push(line.substring(currentIdx));
+          currentIdx = line.length;
+        } else {
+          values.push(line.substring(currentIdx, nextComma));
+          currentIdx = nextComma + 1;
+        }
       }
-      obj[header] = val;
-    });
-    return obj;
-  }).filter((item) => item !== null);
-}
 
+      const obj = {};
+      // 映射标准属性
+      headers.forEach((header, index) => {
+        let val = values[index] ? values[index].trim() : "";
+        if (header === "price" || header === "stock") {
+          val = val ? Number(val) : 0;
+        }
+        obj[header] = val;
+      });
+
+      // ⭐ 提取成本：只要这一列叫 cost，管你有几百行、有没有空格，全部精准提取
+      if (costIndex !== -1 && values[costIndex] !== undefined) {
+        let rawCost = values[costIndex].trim();
+        let parsedCost = Number(rawCost);
+        obj["cost"] = isNaN(parsedCost) ? 0 : parsedCost;
+      } else {
+        obj["cost"] = 0;
+      }
+
+      return obj;
+    })
+    .filter((item) => item !== null);
+}
 function getSupplier(sku) {
   if (!sku) return "供应商二";
   const s = String(sku);
