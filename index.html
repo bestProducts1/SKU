@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="icon/180.png" />
     <style>
       :root {
-        --primary-color: #007bff;
+        --primary-color: #007aff;
         --warning-color: #ff9800;
         --danger-color: #dc3545;
         --success-color: #28a745; /* 新增成功色 */
@@ -521,9 +521,6 @@
         <button class="nav-btn supplier-btn" data-supplier="供应商三">
           供应商三
         </button>
-        <button class="nav-btn supplier-btn" data-supplier="供应商四">
-          供应商四
-        </button>
         <button class="nav-btn supplier-btn" data-supplier="供应商五">
           供应商五
         </button>
@@ -746,7 +743,8 @@
 
         if (!perfumeData) return;
 
-        const { id, name, img, price, tier, sku, supplier } = perfumeData;
+        // 【已核对】解构时把你在表格里新加的 cost 一并提取出来
+        const { id, name, img, price, tier, sku, supplier, cost } = perfumeData;
         const existingItem = cartItems.find((cartItem) => cartItem.name === id);
 
         if (existingItem) {
@@ -761,6 +759,8 @@
             tier: tier,
             sku: sku,
             supplier: supplier,
+            // 【核心注入】让加购的商品带上成本属性，安全转化为纯数字，若没填则默认为0
+            cost: cost ? Number(cost) : 0
           });
         }
         saveCartToLocalStorage();
@@ -862,6 +862,8 @@
                   tier: product.tier,
                   sku: product.sku,
                   supplier: product.supplier,
+                  // ⭐【同步安全修补】：批量订单导入时同步注入成本，确保其不为 0
+                  cost: product.cost ? Number(product.cost) : 0
                 });
                 importedCount += qty;
               } else {
@@ -943,6 +945,8 @@
                     tier: product.tier,
                     sku: product.sku,
                     supplier: product.supplier,
+                    // ⭐【同步安全修补】：SKU字符串切分导入时同步注入成本，确保其不为 0
+                    cost: product.cost ? Number(product.cost) : 0
                   });
                 }
                 importedCount += qty;
