@@ -165,20 +165,19 @@
             const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
             totalWeight += (isSet ? 4 : 1.2) * item.quantity;
 
-            // ⭐【中英文双规穿透算账】：不管通过何种方式加购，多维识别拿货成本
             let directCost = 0;
             if (window.perfumeDB && window.perfumeDB.length > 0) {
+              // ⭐【唯一对账通道】：只拿购物车的 name 去死磕谷歌表格的 A列 (id)
               const matchedProduct = window.perfumeDB.find(p => 
-                (p.id && p.id.trim() === item.name.trim()) || 
-                (p.sku && p.sku.trim() === item.name.trim()) ||
-                (item.caption && item.caption.includes(p.id))
+                p.id && String(p.id).trim().toLowerCase() === String(item.name).trim().toLowerCase()
               );
+
               if (matchedProduct && matchedProduct.cost) {
                 directCost = Number(matchedProduct.cost) || 0;
               }
             }
             
-            // 兜底策略：如果穿透匹配数据库失败，再读取缓存中可能携带的初始成本
+            // 兜底：如果没捞到，读缓存自带的
             if (directCost === 0) {
               directCost = Number(item.cost) || 0;
             }
