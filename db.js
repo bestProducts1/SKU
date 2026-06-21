@@ -1,69 +1,77 @@
 // ==========================================
-// db.js - 产品数据管理中心 (硬编码绝对穿透版)
+// db.js - 双轨运行版 (原有展示功能不变 + 引入新表查成本)
 // ==========================================
 
+// 1. 原有主表格链接（用于展示商品，不动它）
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?gid=0&single=true&output=csv";
+
+// 🔴 2. 已经替换为你只存 SKU 和价格的新表格链接
+const NEW_COST_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRwfhvTIKxcNt7BMH0efPwy1ME4y12feYbdWj510SdJg8k0NzwKrzPs4BYCbzGwKvMRUY62-1blhO5Y/pub?gid=0&single=true&output=csv"; 
+
 const CACHE_DURATION = 5 * 60 * 1000;
 window.perfumeDB = [];
+window.costDB = []; 
 
-// 🛠️ 【本地死磕拿货价防漏装甲】
-// 只要你表格里的 ID（A01, A02）对上了，这里的数字就拥有最高统治权，直接强制灌进去！
-const BACKUP_COSTS = {
-  "A01": 88, "A02": 88, "A03": 88, "A04": 74, "A05": 74,
-  "A06": 78, "A07": 80, "A08": 75, "A09": 100, "A10": 82,
-  "A11": 80, "A12": 77, "A13": 77, "A14": 76, "A15": 70
+// 🧠【最高优先级对账防漏装甲】：直接注入 A19 和 A31 的真实拿货价
+const INJECTED_COSTS = {
+  "A19": 81,
+  "A31": 75
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  initProductData();
+  initAllData();
 });
 
-async function initProductData() {
-  const cacheKey = "perfumeDB_Data_v2";
-  const timeKey = "perfumeDB_Time_v2";
+async function initAllData() {
   const now = new Date().getTime();
-  const cachedTime = localStorage.getItem(timeKey);
-  const cachedData = localStorage.getItem(cacheKey);
+  const cachedTime = localStorage.getItem("perfumeDB_Time_v2");
+  const cachedData = localStorage.getItem("perfumeDB_Data_v2");
+  const cachedCostData = localStorage.getItem("costDB_Data");
 
-  if (cachedData && cachedTime && now - cachedTime < CACHE_DURATION) {
+  if (cachedData && cachedCostData && cachedTime && (now - cachedTime < CACHE_DURATION)) {
     window.perfumeDB = JSON.parse(cachedData);
-    injectCostsForce(); // 强灌拿货价
+    window.costDB = JSON.parse(cachedCostData);
+    injectCostsForce(); 
     runPageLogic();
     return;
   }
 
   try {
-    const response = await fetch(SHEET_URL);
-    const data = await response.text();
-    window.perfumeDB = parseCSV(data);
-    
-    window.perfumeDB.forEach((p) => {
-      p.supplier = getSupplier(p.sku);
-    });
+    const [resMain, resCost] = await Promise.all([
+      fetch(SHEET_URL).then(r => r.text()),
+      fetch(NEW_COST_SHEET_URL).then(r => r.text())
+    ]);
 
-    injectCostsForce(); // 强灌拿货价
-    localStorage.setItem(cacheKey, JSON.stringify(window.perfumeDB));
-    localStorage.setItem(timeKey, now);
+    window.perfumeDB = parseMainCSV(resMain);
+    window.costDB = parseCostCSV(resCost);
+
+    injectCostsForce(); 
+
+    localStorage.setItem("perfumeDB_Data_v2", JSON.stringify(window.perfumeDB));
+    localStorage.setItem("costDB_Data", JSON.stringify(window.costDB));
+    localStorage.setItem("perfumeDB_Time_v2", now);
+    
     runPageLogic();
   } catch (error) {
-    if (cachedData) {
-      window.perfumeDB = JSON.parse(cachedData);
-      injectCostsForce();
-      runPageLogic();
-    }
+    console.error("加载数据失败，尝试降级读取缓存", error);
+    if (cachedData) window.perfumeDB = JSON.parse(cachedData);
+    if (cachedCostData) window.costDB = JSON.parse(cachedCostData);
+    injectCostsForce();
+    runPageLogic();
   }
 }
 
-// 💥 强制灌注逻辑：不管 CSV 解析出了什么垃圾，根据 ID 强行把真实的拿货价写进内存
 function injectCostsForce() {
-  if (!window.perfumeDB) return;
-  window.perfumeDB.forEach(p => {
-    if (p.id && BACKUP_COSTS[p.id] !== undefined) {
-      p.cost = Number(BACKUP_COSTS[p.id]);
+  if (!window.costDB) return;
+  // 强行把 A19 和 A31 塞入价格内存，防止漏单
+  for (let id in INJECTED_COSTS) {
+    const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === id.toLowerCase());
+    if (matched) {
+      matched.cost = Number(INJECTED_COSTS[id]);
     } else {
-      p.cost = Number(p.cost) || 0;
+      window.costDB.push({ sku: id, cost: Number(INJECTED_COSTS[id]) });
     }
-  });
+  }
 }
 
 function runPageLogic() {
@@ -71,69 +79,39 @@ function runPageLogic() {
   if (typeof renderCart === "function") renderCart();
 }
 
-// --- 工具：CSV 解析器（全自动 200+ SKU 精准切分版） ---
-function parseCSV(csvText) {
-  // 1. 处理所有换行符，切分成行
-  const cleanCsvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = cleanCsvText.trim().split("\n");
-  
+function parseMainCSV(csvText) {
+  const clean = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = clean.trim().split("\n");
   if (lines.length < 2) return [];
-
-  // 2. 提取并洗净表头
-  const headers = lines[0]
-    .split(",")
-    .map((h) => h.trim().toLowerCase());
-
-  // 3. 精准定位 cost 列的索引
-  const costIndex = headers.indexOf("cost");
-
-  return lines
-    .slice(1)
-    .map((line) => {
-      // ⭐ 核心修复：防止有的行末尾空列导致被直接腰斩切断
-      // 强制使用与表头完全相同的长度来切分，确保第 14 列之后的 cost 不会丢失
-      const values = [];
-      let currentIdx = 0;
-      
-      for (let i = 0; i < headers.length; i++) {
-        const nextComma = line.indexOf(",", currentIdx);
-        if (nextComma === -1) {
-          values.push(line.substring(currentIdx));
-          currentIdx = line.length;
-        } else {
-          values.push(line.substring(currentIdx, nextComma));
-          currentIdx = nextComma + 1;
-        }
-      }
-
-      const obj = {};
-      // 映射标准属性
-      headers.forEach((header, index) => {
-        let val = values[index] ? values[index].trim() : "";
-        if (header === "price" || header === "stock") {
-          val = val ? Number(val) : 0;
-        }
-        obj[header] = val;
-      });
-
-      // ⭐ 提取成本：只要这一列叫 cost，管你有几百行、有没有空格，全部精准提取
-      if (costIndex !== -1 && values[costIndex] !== undefined) {
-        let rawCost = values[costIndex].trim();
-        let parsedCost = Number(rawCost);
-        obj["cost"] = isNaN(parsedCost) ? 0 : parsedCost;
-      } else {
-        obj["cost"] = 0;
-      }
-
-      return obj;
-    })
-    .filter((item) => item !== null);
+  const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+  return lines.slice(1).map(line => {
+    const values = line.split(",");
+    if (values.length < headers.length) return null;
+    const obj = {};
+    headers.forEach((header, idx) => {
+      let val = values[idx] ? values[idx].trim() : "";
+      if (header === "price" || header === "stock") val = Number(val) || 0;
+      obj[header] = val;
+    });
+    return obj;
+  }).filter(item => item !== null);
 }
-function getSupplier(sku) {
-  if (!sku) return "供应商二";
-  const s = String(sku);
-  if (s.startsWith("1Z") || s === "1znvyou100" || s === "AMXS-01" || s === "DMXS-003") return "供应商五";
-  if (/^H\d+/.test(s)) return "供应商三";
-  if (/^A\d+/.test(s)) return "供应商一";
-  return "供应商二";
+
+function parseCostCSV(csvText) {
+  const clean = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = clean.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+  const skuIdx = headers.indexOf("sku");
+  const costIdx = headers.indexOf("cost");
+  
+  if (skuIdx === -1 || costIdx === -1) return [];
+
+  return lines.slice(1).map(line => {
+    const values = line.split(",");
+    const rawSku = values[skuIdx] ? values[skuIdx].trim() : "";
+    const rawCost = values[costIdx] ? Number(values[costIdx].trim()) : 0;
+    if (!rawSku) return null;
+    return { sku: rawSku, cost: isNaN(rawCost) ? 0 : rawCost };
+  }).filter(item => item !== null);
 }
