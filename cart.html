@@ -103,12 +103,37 @@
             totalWeight += (isSet ? 4 : 1.2) * item.quantity;
 
             let directCost = 0;
-            // 🚀 从专用的成本库 window.costDB（新独立表格）里精准拉取价格
+            let finalTargetSku = "";
+
+            // 1. 🔍【智能追溯】：先去主商品库里，把当前购物车里的中英文名字，转换为标准 ID (如 A03)
+            if (window.perfumeDB && window.perfumeDB.length > 0) {
+              const searchName = String(item.name || "").trim().toLowerCase();
+              const searchSku = String(item.sku || "").trim().toLowerCase();
+              const searchCaption = String(item.caption || "").trim().toLowerCase();
+
+              const mainProduct = window.perfumeDB.find(p => {
+                const tableId = String(p.id || "").trim().toLowerCase();
+                const tableSku = String(p.sku || "").trim().toLowerCase(); // 主表里的中文名
+                return (tableId && (searchName === tableId || searchSku === tableId)) ||
+                       (tableSku && (searchName === tableSku || searchSku === tableSku || searchCaption.includes(tableSku)));
+              });
+
+              if (mainProduct && mainProduct.id) {
+                finalTargetSku = String(mainProduct.id).trim().toLowerCase(); // 转化成功，拿到 standard ID
+              }
+            }
+
+            // 如果主表没查到，降级直接使用购物车自带的标识
+            if (!finalTargetSku) {
+              finalTargetSku = String(item.name || "").trim().toLowerCase();
+            }
+
+            // 2. 🚀【新表精准提钱】：拿着洗净的标准 ID，去你的新价格表里撞 cost
             if (window.costDB && window.costDB.length > 0) {
-              const targetName = String(item.sku || item.name).trim().toLowerCase();
-              const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === targetName);
+              const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === finalTargetSku);
               if (matched) directCost = Number(matched.cost) || 0;
             }
+            
             totalRmbCost += directCost * item.quantity;
           });
 
