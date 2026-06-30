@@ -25,13 +25,9 @@
       .back-link { text-decoration: none; color: var(--primary-color); font-size: 0.95rem; font-weight: 500; padding: 6px 14px; border-radius: 18px; background: rgba(0, 122, 255, 0.1); }
       .cart-container { max-width: 1200px; margin: 20px auto 10px; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
       
-      /* 商品卡片基础样式 */
       .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); transition: all 0.2s; }
-      
-      /* 🚨 【新增】缺货卡片高亮红色虚线边框 */
       .cart-item.out-of-stock { border: 1px dashed var(--danger-color); opacity: 0.9; }
 
-      /* 🖼️ 【新增】产品图片容器与遮罩样式 */
       .product-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background-color: #f4f4f4; }
       .product-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
       .stock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; backdrop-filter: blur(2px); z-index: 5; }
@@ -47,7 +43,7 @@
       
       .preview-section { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
       .preview-card { background-color: #fff; border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.02); }
-      #order-preview-text { width: 100%; height: 130px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.85rem; resize: none; background-color: #fbfbfd; outline: none; }
+      #order-preview-text { width: 100%; height: 160px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.85rem; resize: none; background-color: #fbfbfd; outline: none; }
       .cart-summary { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); padding: 15px 30px 25px; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 999; }
       .summary-content { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
       .total-value { font-size: 1.6rem; font-weight: 800; }
@@ -109,8 +105,23 @@
           const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
           let totalWeight = 0;
           let totalRmbCost = 0;
+          let lvCount = 0;
+          let otherCount = 0;
+
+          // 准备最终导出的规范化文本行数组
+          let exportLines = ["*Order Request List*", "------------------"];
 
           cartItems.forEach((item) => {
+            // 拼接核心商品信息行
+            exportLines.push(`${item.caption} x ${item.quantity}`);
+
+            // 分类统计 LV 与 其他品牌数量
+            if (item.caption.toLowerCase().includes("louis vuitton")) {
+              lvCount += item.quantity;
+            } else {
+              otherCount += item.quantity;
+            }
+
             const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
             totalWeight += (isSet ? 4 : 1.2) * item.quantity;
 
@@ -146,6 +157,11 @@
             totalRmbCost += directCost * item.quantity;
           });
 
+          // 闭合文本末尾数据
+          exportLines.push("------------------");
+          exportLines.push(`LV: ${lvCount} | Other: ${otherCount}`);
+          exportLines.push(`Total Items: ${totalQty}`);
+
           let trackingNumCount = totalQty > 80 ? 3 : (totalQty > 40 ? 2 : 1);
           let baseShipping = 0;
           if (totalWeight > 0) {
@@ -171,8 +187,9 @@
             `;
           }
 
+          // 将全新组装完毕的纯英规范对账单呈现在文本域中
           if (previewTextarea) {
-            previewTextarea.value = cartItems.map(i => `${i.sku || i.name}*${i.quantity}`).join("\n");
+            previewTextarea.value = exportLines.join("\n");
           }
         }
 
@@ -194,7 +211,6 @@
             itemEl.className = "cart-item";
             itemEl.dataset.name = item.name;
 
-            // 🔍 【核心检查】：联动主表 window.perfumeDB 实时检索该 ID 对应商品的库存
             let isOutOfStock = false;
             if (window.perfumeDB && window.perfumeDB.length > 0) {
               const matchedMainProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
@@ -203,13 +219,11 @@
               }
             }
 
-            // 如果判定缺货，追加 out-of-stock 类名触发边框高亮
             if (isOutOfStock) {
               itemEl.classList.add("out-of-stock");
             }
 
-            const displayName = item.sku || item.caption || item.name;
-            // 补全图片抓取路径，如果数据源中没有 img 属性，降级使用本地规范的 images/{ID}.webp 路径
+            const displayName = item.caption || item.name;
             const correctImgSrc = item.img || `images/${item.name}.webp`;
 
             itemEl.innerHTML = `
@@ -258,7 +272,18 @@
 
         checkoutBtn.addEventListener("click", () => {
           navigator.clipboard.writeText(previewTextarea.value);
-          alert("Copied!");
+          
+          // 替换掉生硬的 alert 弹窗，采用纯正、静默的英文提示
+          let toast = document.getElementById("copy-toast");
+          if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "copy-toast";
+            toast.style.cssText = "position:fixed; bottom:120px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:10px 20px; border-radius:20px; font-size:0.9rem; z-index:9999; transition:opacity 0.3s;";
+            document.body.appendChild(toast);
+          }
+          toast.textContent = "Copied to clipboard!";
+          toast.style.opacity = "1";
+          setTimeout(() => { toast.style.opacity = "0"; }, 1500);
         });
 
         clearCartBtn.addEventListener("click", () => {
