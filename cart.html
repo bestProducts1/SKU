@@ -24,7 +24,18 @@
       .header h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
       .back-link { text-decoration: none; color: var(--primary-color); font-size: 0.95rem; font-weight: 500; padding: 6px 14px; border-radius: 18px; background: rgba(0, 122, 255, 0.1); }
       .cart-container { max-width: 1200px; margin: 20px auto 10px; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-      .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); }
+      
+      /* 商品卡片基础样式 */
+      .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); transition: all 0.2s; }
+      
+      /* 🚨 【新增】缺货卡片高亮红色虚线边框 */
+      .cart-item.out-of-stock { border: 1px dashed var(--danger-color); opacity: 0.9; }
+
+      /* 🖼️ 【新增】产品图片容器与遮罩样式 */
+      .product-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background-color: #f4f4f4; }
+      .product-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+      .stock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; backdrop-filter: blur(2px); z-index: 5; }
+
       .item-info { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; width: 100%; }
       .item-info .item-name { font-weight: 600; margin: 0 0 4px 0; font-size: 0.95rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5em; }
       .item-supplier { font-size: 0.7rem; color: var(--text-secondary); background-color: #f2f2f7; padding: 2px 6px; border-radius: 4px; width: fit-content; margin-bottom: 10px; font-weight: 600; }
@@ -33,6 +44,7 @@
       .quantity-controls button { background-color: #fff; border: 0.5px solid rgba(0, 0, 0, 0.04); width: 28px; height: 28px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
       .quantity-controls .quantity { font-size: 1rem; font-weight: 600; margin: 0 8px; }
       .remove-btn { background: rgba(255, 255, 255, 0.9); color: #ff3b30; border: none; width: 26px; height: 26px; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: absolute; top: 6px; right: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); z-index: 10; }
+      
       .preview-section { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
       .preview-card { background-color: #fff; border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.02); }
       #order-preview-text { width: 100%; height: 130px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.85rem; resize: none; background-color: #fbfbfd; outline: none; }
@@ -105,7 +117,6 @@
             let directCost = 0;
             let finalTargetSku = "";
 
-            // 1. 🔍【智能追溯】：先去主商品库里，把当前购物车里的中英文名字，转换为标准 ID (如 A03)
             if (window.perfumeDB && window.perfumeDB.length > 0) {
               const searchName = String(item.name || "").trim().toLowerCase();
               const searchSku = String(item.sku || "").trim().toLowerCase();
@@ -113,22 +124,20 @@
 
               const mainProduct = window.perfumeDB.find(p => {
                 const tableId = String(p.id || "").trim().toLowerCase();
-                const tableSku = String(p.sku || "").trim().toLowerCase(); // 主表里的中文名
+                const tableSku = String(p.sku || "").trim().toLowerCase();
                 return (tableId && (searchName === tableId || searchSku === tableId)) ||
                        (tableSku && (searchName === tableSku || searchSku === tableSku || searchCaption.includes(tableSku)));
               });
 
               if (mainProduct && mainProduct.id) {
-                finalTargetSku = String(mainProduct.id).trim().toLowerCase(); // 转化成功，拿到 standard ID
+                finalTargetSku = String(mainProduct.id).trim().toLowerCase();
               }
             }
 
-            // 如果主表没查到，降级直接使用购物车自带的标识
             if (!finalTargetSku) {
               finalTargetSku = String(item.name || "").trim().toLowerCase();
             }
 
-            // 2. 🚀【新表精准提钱】：拿着洗净的标准 ID，去你的新价格表里撞 cost
             if (window.costDB && window.costDB.length > 0) {
               const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === finalTargetSku);
               if (matched) directCost = Number(matched.cost) || 0;
@@ -137,7 +146,6 @@
             totalRmbCost += directCost * item.quantity;
           });
 
-          // 🚚 美国阶梯运费逻辑 (1-3 lbs $11, 续重 $1)
           let trackingNumCount = totalQty > 80 ? 3 : (totalQty > 40 ? 2 : 1);
           let baseShipping = 0;
           if (totalWeight > 0) {
@@ -185,13 +193,36 @@
             const itemEl = document.createElement("div");
             itemEl.className = "cart-item";
             itemEl.dataset.name = item.name;
+
+            // 🔍 【核心检查】：联动主表 window.perfumeDB 实时检索该 ID 对应商品的库存
+            let isOutOfStock = false;
+            if (window.perfumeDB && window.perfumeDB.length > 0) {
+              const matchedMainProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
+              if (matchedMainProduct && Number(matchedMainProduct.stock) === 0) {
+                isOutOfStock = true;
+              }
+            }
+
+            // 如果判定缺货，追加 out-of-stock 类名触发边框高亮
+            if (isOutOfStock) {
+              itemEl.classList.add("out-of-stock");
+            }
+
             const displayName = item.sku || item.caption || item.name;
+            // 补全图片抓取路径，如果数据源中没有 img 属性，降级使用本地规范的 images/{ID}.webp 路径
+            const correctImgSrc = item.img || `images/${item.name}.webp`;
 
             itemEl.innerHTML = `
               <button class="remove-btn">&times;</button>
+              
+              <div class="product-image-container">
+                <img src="${correctImgSrc}" alt="${displayName}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
+                ${isOutOfStock ? '<div class="stock-overlay">Stock: 0</div>' : ''}
+              </div>
+
               <div class="item-info">
                 <p class="item-name">${displayName}</p>
-                <span class="item-supplier">${item.supplier || "供应商二"}</span>
+                <span class="item-supplier">${item.supplier || "Unknown"}</span>
               </div>
               <div class="item-controls">
                  <div class="quantity-controls">
