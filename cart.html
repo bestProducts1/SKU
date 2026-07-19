@@ -1,136 +1,569 @@
-<script>
-  function handleOrderPaste(text) {
-    const db = window.perfumeDB || [];
-    if (db.length === 0) {
-      alert("数据库尚未加载完毕，请稍候再试。");
-      return;
-    }
-
-    const lines = text.split("\n");
-    let importedCount = 0;
-    let notFoundList = [];
-    let tempCart = [];
-
-    const lineRegex = /^\s*[-*•]?\s*([A-Za-z0-9]+).*[xX×]\s*[*]?\(?(\d+)/i;
-
-    lines.forEach((line) => {
-      const match = line.match(lineRegex);
-      if (match) {
-        const id = match[1].trim();
-        const qty = parseInt(match[2]);
-        const product = db.find((p) => p.id === id);
-
-        if (product) {
-          tempCart.push({
-            name: product.id,
-            caption: `${product.id} - ${product.name}`,
-            img: product.img,
-            quantity: qty,
-            price: Number(product.price),
-            tier: product.tier,
-            sku: product.sku,
-            supplier: product.supplier
-          });
-          importedCount += qty;
-        } else {
-          notFoundList.push(id);
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>香水香氛独立站</title>
+    <link rel="icon" type="image/png" href="icon/32.png">
+    <link rel="apple-touch-icon" href="icon/180.png">
+    <style>
+        /* 1. 基础全局样式 */
+        :root {
+            --primary-color: #007aff;
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --border-light: rgba(0, 0, 0, 0.08);
         }
-      }
-    });
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
 
-    if (importedCount > 0) {
-      cartItems = tempCart;
-      saveCartToLocalStorage();
-      updateCartCount();
-      renderItemCounts();
-
-      searchInput.value = "";
-      searchTerm = "";
-      clearSearchButton.style.display = "none";
-
-      let msg = `✅ 导入成功！共计加购了 ${importedCount} 件商品。`;
-      if (notFoundList.length > 0) {
-        msg += `\n\n⚠️ 以下编号在数据库中未找到，已跳过：\n${notFoundList.join(", ")}`;
-      }
-      alert(msg);
-    } else {
-      if (lines.length > 2) {
-        alert("检测到粘贴内容，但未能识别任何有效的商品和数量，请检查格式或产品编号。");
-      }
-    }
-  }
-
-  function handleSkuStringPaste(text) {
-    const db = window.perfumeDB || [];
-    if (db.length === 0) {
-      alert("数据库尚未加载完毕，请稍候再试。");
-      return;
-    }
-
-    let cleanText = text.replace(/---.*?---/g, '');
-    cleanText = cleanText.replace(/[\u00A0\u2000-\u200B\u3000]/g, ' ');
-
-    const items = cleanText.split(/[+\n,\r]/);
-    let importedCount = 0;
-    let notFoundList = [];
-
-    items.forEach((itemStr) => {
-      const trimmedItem = itemStr.trim();
-      if (!trimmedItem) return;
-
-      const match = trimmedItem.match(/(.*?)\*\s*(\d+)/);
-      if (match) {
-        const skuName = match[1].trim();
-        const qty = parseInt(match[2], 10);
+        /* 2. 核心导航栏（PC与移动端共用骨架） */
+        .navbar {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-light);
+            z-index: 1000;
+            padding: 0 20px;
+            height: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nav-logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.5px; }
         
-        if (!skuName || qty <= 0) return;
-
-        const product = db.find(p => p.sku && p.sku === skuName) ||
-                        db.find(p => p.name && p.name === skuName) ||
-                        db.find(p => (p.sku && p.sku.includes(skuName)) || (p.name && p.name.includes(skuName)));
-
-        if (product) {
-          const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
-          if (existingItem) {
-            existingItem.quantity += qty;
-          } else {
-            cartItems.push({
-              name: product.id,
-              caption: `${product.id} - ${product.name}`,
-              img: product.img,
-              quantity: qty,
-              price: Number(product.price),
-              tier: product.tier,
-              sku: product.sku,
-              supplier: product.supplier
-            });
-          }
-          importedCount += qty;
-        } else {
-          notFoundList.push(skuName);
+        /* 搜索框容器 */
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin: 0 15px;
         }
-      }
-    });
+        .search-input {
+            width: 100%;
+            padding: 8px 35px 8px 15px;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 20px;
+            background: #f2f2f7;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .search-input:focus { background: #fff; border-color: var(--primary-color); }
+        .clear-search-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: none;
+        }
 
-    if (importedCount > 0) {
-      saveCartToLocalStorage();
-      updateCartCount();
-      renderItemCounts();
+        /* 购物车图标 */
+        .nav-cart {
+            position: relative;
+            text-decoration: none;
+            color: var(--text-main);
+            font-weight: 500;
+            font-size: 0.95rem;
+            padding: 6px 12px;
+            border-radius: 15px;
+            background: rgba(0,0,0,0.05);
+        }
+        .cart-count-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff3b30;
+            color: white;
+            font-size: 0.75rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
 
-      searchInput.value = "";
-      searchTerm = "";
-      clearSearchButton.style.display = "none";
+        /* 主体布局容器 */
+        .main-layout {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 20px;
+        }
 
-      let msg = `✅ 成功解析并加购 ${importedCount} 件商品！`;
-      if (notFoundList.length > 0) {
-        msg += `\n\n⚠️ 未找到以下匹配的 SKU 或商品名称：\n${notFoundList.join(" , ")}`;
-      }
-      alert(msg);
-    } else {
-      searchInput.value = text.trim();
-      searchTerm = text.trim().toLowerCase();
-      clearSearchButton.style.display = searchTerm ? "block" : "none";
-      renderPerfumes();
-    }
-  }
-</script>
+        /* 3. 移动端专属：无限循环轮播图样式 */
+        .mobile-carousel-section {
+            display: none; /* 默认PC端隐藏 */
+            margin-bottom: 20px;
+            overflow: hidden;
+            border-radius: 12px;
+            position: relative;
+        }
+        .carousel-wrapper {
+            display: flex;
+            width: 100%;
+            transition: transform 0.3s ease-in-out;
+        }
+        .carousel-slide {
+            min-width: 100%;
+            position: relative;
+            padding-top: 45%; /* 16:7 黄金比例 */
+            background: #e5e5ea;
+        }
+        .carousel-slide img {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover;
+        }
+
+        /* 4. 快捷批量导入区域（功能区） */
+        .import-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .import-title { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text-main); }
+        .import-box-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .import-card { display: flex; flex-direction: column; }
+        .import-textarea {
+            width: 100%; height: 80px; padding: 10px;
+            border: 1px solid var(--border-light); border-radius: 8px;
+            font-size: 0.85rem; resize: none; margin-bottom: 8px; outline: none;
+        }
+        .import-btn {
+            background: var(--text-main); color: #fff; border: none;
+            padding: 8px 16px; border-radius: 6px; font-size: 0.85rem;
+            font-weight: 500; cursor: pointer; transition: opacity 0.2s;
+        }
+        .import-btn:hover { opacity: 0.9; }
+
+        /* 5. 核心产品商品网格 - 彻底隔离PC与手机，不碎屏 */
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* PC端雷打不动标准4列 */
+            gap: 20px;
+        }
+        .product-card {
+            background: #fff; border-radius: 12px; padding: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            display: flex; flex-direction: column;
+            border: 1px solid rgba(0,0,0,0.02); position: relative;
+        }
+        .p-img-container {
+            position: relative; width: 100%; padding-top: 100%;
+            background: #f4f4f4; border-radius: 8px; overflow: hidden; margin-bottom: 10px;
+        }
+        .p-img-container img {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+        }
+        .p-info { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .p-name { font-weight: 600; font-size: 0.95rem; line-height: 1.3; margin-bottom: 4px; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .p-supplier { font-size: 0.75rem; color: var(--text-secondary); background: #f2f2f7; padding: 2px 6px; border-radius: 4px; width: fit-content; margin-bottom: 12px; }
+        .p-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+        .p-sku { font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; }
+        .add-cart-btn {
+            background: var(--primary-color); color: white; border: none;
+            width: 28px; height: 28px; border-radius: 50%; font-size: 1.2rem;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+
+        /* 6. 响应式媒体查询：只在手机端改变布局，绝对不碰、不破坏PC母版 */
+        @media (max-width: 768px) {
+            .navbar { padding: 0 12px; }
+            .search-container { max-width: none; flex-grow: 1; margin: 0 8px; }
+            .import-box-row { grid-template-columns: 1fr; } /* 手机端导入框上下堆叠 */
+            
+            /* 激活手机端无限轮播图 */
+            .mobile-carousel-section { display: block; }
+            
+            /* 手机端商品自适应变成精致 2 列 */
+            .products-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .main-layout { padding: 10px; }
+            .p-name { font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 顶层导航栏 -->
+    <div class="navbar">
+        <div class="nav-logo">FRAGRANCE</div>
+        <div class="search-container">
+            <input type="text" id="search-input" class="search-input" placeholder="搜索商品名称或 SKU...">
+            <button id="clear-search" class="clear-search-btn">&times;</button>
+        </div>
+        <a href="cart.html" class="nav-cart">
+            🛒 购物车
+            <span id="cart-count" class="cart-count-badge">0</span>
+        </a>
+    </div>
+
+    <!-- 主体内容容器 -->
+    <div class="main-layout">
+
+        <!-- 移动端独享：无限循环轮播图容器 -->
+        <div class="mobile-carousel-section">
+            <div class="carousel-wrapper" id="carousel-wrapper">
+                <!-- 轮播图片通过下面的 JS 动态渲染 -->
+            </div>
+        </div>
+
+        <!-- 批量粘贴快捷功能区 -->
+        <div class="import-section">
+            <div class="import-title">⚡ 快捷批量订单操作面板</div>
+            <div class="import-box-row">
+                <div class="import-card">
+                    <textarea id="order-paste-box" class="import-textarea" placeholder="格式一：直接粘贴供货商格式线订单\n-编号A x 5\n-编号B x 2"></textarea>
+                    <button class="import-btn" id="btn-import-order">解析并覆盖购物车</button>
+                </div>
+                <div class="import-card">
+                    <textarea id="sku-paste-box" class="import-textarea" placeholder="格式二：字符串连号格式（支持加号或逗号）\nSKU名*3 + SKU名*5"></textarea>
+                    <button class="import-btn" id="btn-import-sku">解析并累加到购物车</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 商品列表渲染网格 -->
+        <div class="products-grid" id="products-grid">
+            <!-- 商品卡片由本地数据库 db.js 驱动生成 -->
+        </div>
+
+    </div>
+
+    <!-- 引入数据库文件 -->
+    <script src="db.js"></script>
+
+    <!-- 核心业务逻辑控制脚本 -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const productsGrid = document.getElementById("products-grid");
+            const searchInput = document.getElementById("search-input");
+            const clearSearchButton = document.getElementById("clear-search");
+            const cartCountBadge = document.getElementById("cart-count");
+            
+            let cartItems = [];
+            let searchTerm = "";
+
+            // 1. 本地购物车缓存读取与安全存储
+            function loadCartFromLocalStorage() {
+                const stored = localStorage.getItem("perfumeCart");
+                cartItems = stored ? JSON.parse(stored) : [];
+            }
+
+            function saveCartToLocalStorage() {
+                localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
+            }
+
+            function updateCartCount() {
+                const total = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+                cartCountBadge.textContent = total;
+            }
+
+            // 2. 动态渲染商品网格
+            function renderPerfumes() {
+                productsGrid.innerHTML = "";
+                const db = window.perfumeDB || [];
+
+                if (db.length === 0) {
+                    productsGrid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:40px; color:#86868b;">数据库未加载或无数据，请检查 db.js 是否配置正确</div>`;
+                    return;
+                }
+
+                // 联动搜索框过滤
+                const filtered = db.filter(p => {
+                    const nameMatch = String(p.name || "").toLowerCase().includes(searchTerm);
+                    const idMatch = String(p.id || "").toLowerCase().includes(searchTerm);
+                    const skuMatch = String(p.sku || "").toLowerCase().includes(searchTerm);
+                    return nameMatch || idMatch || skuMatch;
+                });
+
+                if (filtered.length === 0) {
+                    productsGrid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:40px; color:#86868b;">未找到匹配的香水产品</div>`;
+                    return;
+                }
+
+                filtered.forEach(product => {
+                    const card = document.createElement("div");
+                    card.className = "product-card";
+                    
+                    const imgUrl = product.img || `images/${product.id}.webp`;
+
+                    card.innerHTML = `
+                        <div class="p-img-container">
+                            <img src="${imgUrl}" alt="${product.name}" loading="lazy" onerror="this.src='placeholder.png';">
+                        </div>
+                        <div class="p-info">
+                            <p class="p-name">${product.id} - ${product.name}</p>
+                            <span class="p-supplier">${product.supplier || "预设厂商"}</span>
+                            <div class="p-bottom">
+                                <span class="p-sku">SKU: ${product.sku || '无'}</span>
+                                <button class="add-cart-btn" data-id="${product.id}">+</button>
+                            </div>
+                        </div>
+                    `;
+                    productsGrid.appendChild(card);
+                });
+            }
+
+            // 商品卡片点击加购事件监听
+            productsGrid.addEventListener("click", (e) => {
+                if (e.target.classList.contains("add-cart-btn")) {
+                    const productId = e.target.dataset.id;
+                    const db = window.perfumeDB || [];
+                    const product = db.find(p => p.id === productId);
+
+                    if (product) {
+                        const exist = cartItems.find(item => item.name === product.id);
+                        if (exist) {
+                            exist.quantity++;
+                        } else {
+                            cartItems.push({
+                                name: product.id,
+                                caption: `${product.id} - ${product.name}`,
+                                img: product.img,
+                                quantity: 1,
+                                price: Number(product.price) || 0,
+                                tier: product.tier || "",
+                                sku: product.sku || "",
+                                supplier: product.supplier || ""
+                            });
+                        }
+                        saveCartToLocalStorage();
+                        updateCartCount();
+                    }
+                }
+            });
+
+            // 3. 搜索联动监听
+            searchInput.addEventListener("input", (e) => {
+                searchTerm = e.target.value.trim().toLowerCase();
+                clearSearchButton.style.display = searchTerm ? "block" : "none";
+                renderPerfumes();
+            });
+
+            clearSearchButton.addEventListener("click", () => {
+                searchInput.value = "";
+                searchTerm = "";
+                clearSearchButton.style.display = "none";
+                renderPerfumes();
+            });
+
+
+            // ==========================================
+            // 4. 纯正中文批量订单导入逻辑（无缝嵌回）
+            // ==========================================
+            function handleOrderPaste(text) {
+                const db = window.perfumeDB || [];
+                if (db.length === 0) {
+                    alert("数据库尚未加载完毕，请稍候再试。");
+                    return;
+                }
+
+                const lines = text.split("\n");
+                let importedCount = 0;
+                let notFoundList = [];
+                let tempCart = [];
+
+                const lineRegex = /^\s*[-*•]?\s*([A-Za-z0-9]+).*[xX×]\s*[*]?\(?(\d+)/i;
+
+                lines.forEach((line) => {
+                    const match = line.match(lineRegex);
+                    if (match) {
+                        const id = match[1].trim();
+                        const qty = parseInt(match[2]);
+                        const product = db.find((p) => p.id === id);
+
+                        if (product) {
+                            tempCart.push({
+                                name: product.id,
+                                caption: `${product.id} - ${product.name}`,
+                                img: product.img,
+                                quantity: qty,
+                                price: Number(product.price) || 0,
+                                tier: product.tier,
+                                sku: product.sku,
+                                supplier: product.supplier
+                            });
+                            importedCount += qty;
+                        } else {
+                            notFoundList.push(id);
+                        }
+                    }
+                });
+
+                if (importedCount > 0) {
+                    cartItems = tempCart; // 直接覆盖
+                    saveCartToLocalStorage();
+                    updateCartCount();
+                    
+                    document.getElementById("order-paste-box").value = "";
+                    let msg = `✅ 导入成功！共计加购了 ${importedCount} 件商品。`;
+                    if (notFoundList.length > 0) {
+                        msg += `\n\n⚠️ 以下编号在数据库中未找到，已跳过：\n${notFoundList.join(", ")}`;
+                    }
+                    alert(msg);
+                } else {
+                    if (lines.length > 1) {
+                        alert("检测到粘贴内容，但未能识别任何有效的商品和数量，请检查格式或产品编号。");
+                    }
+                }
+            }
+
+            function handleSkuStringPaste(text) {
+                const db = window.perfumeDB || [];
+                if (db.length === 0) {
+                    alert("数据库尚未加载完毕，请稍候再试。");
+                    return;
+                }
+
+                let cleanText = text.replace(/---.*?---/g, '');
+                cleanText = cleanText.replace(/[\u00A0\u2000-\u200B\u3000]/g, ' ');
+
+                const items = cleanText.split(/[+\n,\r]/);
+                let importedCount = 0;
+                let notFoundList = [];
+
+                items.forEach((itemStr) => {
+                    const trimmedItem = itemStr.trim();
+                    if (!trimmedItem) return;
+
+                    const match = trimmedItem.match(/(.*?)\*\s*(\d+)/);
+                    if (match) {
+                        const skuName = match[1].trim();
+                        const qty = parseInt(match[2], 10);
+                        
+                        if (!skuName || qty <= 0) return;
+
+                        const product = db.find(p => p.sku && p.sku === skuName) ||
+                                        db.find(p => p.name && p.name === skuName) ||
+                                        db.find(p => (p.sku && p.sku.includes(skuName)) || (p.name && p.name.includes(skuName)));
+
+                        if (product) {
+                            const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
+                            if (existingItem) {
+                                existingItem.quantity += qty;
+                            } else {
+                                cartItems.push({
+                                    name: product.id,
+                                    caption: `${product.id} - ${product.name}`,
+                                    img: product.img,
+                                    quantity: qty,
+                                    price: Number(product.price) || 0,
+                                    tier: product.tier,
+                                    sku: product.sku,
+                                    supplier: product.supplier
+                                });
+                            }
+                            importedCount += qty;
+                        } else {
+                            notFoundList.push(skuName);
+                        }
+                    }
+                });
+
+                if (importedCount > 0) {
+                    saveCartToLocalStorage();
+                    updateCartCount();
+
+                    document.getElementById("sku-paste-box").value = "";
+                    let msg = `✅ 成功解析并加购 ${importedCount} 件商品！`;
+                    if (notFoundList.length > 0) {
+                        msg += `\n\n⚠️ 未找到以下匹配的 SKU 或商品名称：\n${notFoundList.join(" , ")}`;
+                    }
+                    alert(msg);
+                } else {
+                    alert("无法识别连号格式，请确保格式如：SKU*数量");
+                }
+            }
+
+            // 挂载解析按钮的点击事件
+            document.getElementById("btn-import-order").addEventListener("click", () => {
+                const txt = document.getElementById("order-paste-box").value;
+                if(txt.trim()) handleOrderPaste(txt);
+            });
+
+            document.getElementById("btn-import-sku").addEventListener("click", () => {
+                const txt = document.getElementById("sku-paste-box").value;
+                if(txt.trim()) handleSkuStringPaste(txt);
+            });
+
+
+            // ==========================================
+            // 5. 移动端无限循环轮播图原生无缝滚动逻辑
+            // ==========================================
+            function initMobileCarousel() {
+                const wrapper = document.getElementById("carousel-wrapper");
+                // 默认预设的几张轮播图，你可以自行替换成你的实际图片路径
+                const images = ['images/banner1.webp', 'images/banner2.webp', 'images/banner3.webp'];
+                
+                if (images.length === 0) return;
+
+                // 为了实现无缝循环首尾拼接：克隆第一张放到最后，克隆最后一张放到最前
+                const imgList = [images[images.length - 1], ...images, images[0]];
+                
+                wrapper.innerHTML = imgList.map(src => `
+                    <div class="carousel-slide">
+                        <img src="${src}" onerror="this.src='placeholder.png';">
+                    </div>
+                `).join('');
+
+                let currentIndex = 1;
+                const totalSlides = imgList.length;
+                
+                // 初始化位置偏移到真正的第一张
+                wrapper.style.transform = `translateX(-100%)`;
+
+                function goNext() {
+                    if (currentIndex >= totalSlides - 1) return;
+                    currentIndex++;
+                    wrapper.style.transition = "transform 0.3s ease-in-out";
+                    wrapper.style.transform = `translateX(-${currentIndex * 100}%)`;
+                }
+
+                // 监听动画过渡结束，瞬间进行首尾切换，实现无限穿梭盲区
+                wrapper.addEventListener("transitionend", () => {
+                    if (currentIndex === totalSlides - 1) {
+                        wrapper.style.transition = "none";
+                        currentIndex = 1;
+                        wrapper.style.transform = `translateX(-100%)`;
+                    }
+                    if (currentIndex === 0) {
+                        wrapper.style.transition = "none";
+                        currentIndex = totalSlides - 2;
+                        wrapper.style.transform = `translateX(-${currentIndex * 100}%)`;
+                    }
+                });
+
+                // 每 4 秒自动轮播
+                setInterval(goNext, 4000);
+            }
+
+            // 初始化流程启动
+            loadCartFromLocalStorage();
+            updateCartCount();
+            
+            // 延迟一点点等 db.js 彻底加载到 window 对象中
+            setTimeout(() => {
+                renderPerfumes();
+                initMobileCarousel();
+            }, 100);
+        });
+    </script>
+</body>
+</html>
