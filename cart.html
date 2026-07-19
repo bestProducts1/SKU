@@ -167,9 +167,26 @@
             `;
           }
 
-          // 🟢 核心修正：彻底回归你原本包含中文简称的 SKU*数量 纯净列表格式！
+          // 🟢 Bug修复：优化列表生成格式，提取并联动真实数据库中的“中文名称”替代纯数字编号
           if (previewTextarea) {
-            previewTextarea.value = cartItems.map(i => `${i.sku || i.name}*${i.quantity}`).join("\n");
+            previewTextarea.value = cartItems.map(i => {
+              let chineseName = "";
+              // 1. 尝试从完全加载的远程数据库中寻找匹配的中文名称
+              if (window.perfumeDB && window.perfumeDB.length > 0) {
+                const matched = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(i.name).toLowerCase());
+                if (matched && matched.name) {
+                  chineseName = matched.name;
+                }
+              }
+              // 2. 降级容错机制：如果数据库还没响应，从前端生成的带中文简称的 caption 属性中拆解提取
+              if (!chineseName && i.caption && i.caption.includes(" - ")) {
+                chineseName = i.caption.split(" - ")[1];
+              }
+              
+              // 3. 决定最终标识符：优先使用找到的中文名，没有则退回 sku，最后退回编号
+              const finalIdentifier = chineseName || i.sku || i.name;
+              return `${finalIdentifier}*${i.quantity}`;
+            }).join("\n");
           }
         }
 
@@ -192,10 +209,15 @@
             itemEl.dataset.name = item.name;
 
             let isOutOfStock = false;
+            let dbChineseName = "";
+
             if (window.perfumeDB && window.perfumeDB.length > 0) {
               const matchedMainProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
-              if (matchedMainProduct && Number(matchedMainProduct.stock) === 0) {
-                isOutOfStock = true;
+              if (matchedMainProduct) {
+                if (Number(matchedMainProduct.stock) === 0) {
+                  isOutOfStock = true;
+                }
+                dbChineseName = matchedMainProduct.name;
               }
             }
 
@@ -203,7 +225,8 @@
               itemEl.classList.add("out-of-stock");
             }
 
-            const displayName = item.caption || item.name;
+            // 🟢 视觉显示优化：确保购物车卡片列表上显示的一定是“编号 - 中文名”的完整中文格式
+            const displayName = dbChineseName ? `${item.name} - ${dbChineseName}` : (item.caption || item.name);
             const correctImgSrc = item.img || `images/${item.name}.webp`;
 
             itemEl.innerHTML = `
