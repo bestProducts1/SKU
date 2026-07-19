@@ -1,303 +1,136 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shopping Cart</title>
-    <link rel="icon" type="image/png" href="icon/32.png" />
-    <link rel="apple-touch-icon" href="icon/180.png" />
-    <style>
-      :root {
-        --primary-color: #007aff;
-        --success-color: #34c759;
-        --danger-color: #ff3b30;
-        --bg-color: #f5f5f7;
-        --card-bg: #ffffff;
-        --text-main: #1d1d1f;
-        --text-secondary: #86868b;
-      }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background-color: var(--bg-color); margin: 0; color: var(--text-main); padding-bottom: 240px; -webkit-font-smoothing: antialiased;
-      }
-      .header { background-color: rgba(255, 255, 255, 0.8); padding: 12px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(0, 0, 0, 0.1); backdrop-filter: blur(20px); }
-      .header h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
-      .back-link { text-decoration: none; color: var(--primary-color); font-size: 0.95rem; font-weight: 500; padding: 6px 14px; border-radius: 18px; background: rgba(0, 122, 255, 0.1); }
-      .cart-container { max-width: 1200px; margin: 20px auto 10px; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-      
-      .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); transition: all 0.2s; }
-      .cart-item.out-of-stock { border: 1px dashed var(--danger-color); opacity: 0.9; }
+<script>
+  function handleOrderPaste(text) {
+    const db = window.perfumeDB || [];
+    if (db.length === 0) {
+      alert("数据库尚未加载完毕，请稍候再试。");
+      return;
+    }
 
-      .product-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background-color: #f4f4f4; }
-      .product-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-      .stock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; backdrop-filter: blur(2px); z-index: 5; }
+    const lines = text.split("\n");
+    let importedCount = 0;
+    let notFoundList = [];
+    let tempCart = [];
 
-      .item-info { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; width: 100%; }
-      .item-info .item-name { font-weight: 600; margin: 0 0 4px 0; font-size: 0.95rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5em; }
-      .item-supplier { font-size: 0.7rem; color: var(--text-secondary); background-color: #f2f2f7; padding: 2px 6px; border-radius: 4px; width: fit-content; margin-bottom: 10px; font-weight: 600; }
-      .item-controls { display: flex; justify-content: center; align-items: center; margin-top: auto; padding-top: 8px; border-top: 1px solid #f5f5f5; }
-      .quantity-controls { display: flex; align-items: center; background-color: #f2f2f7; border-radius: 16px; padding: 2px; width: 100%; justify-content: space-between; }
-      .quantity-controls button { background-color: #fff; border: 0.5px solid rgba(0, 0, 0, 0.04); width: 28px; height: 28px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-      .quantity-controls .quantity { font-size: 1rem; font-weight: 600; margin: 0 8px; }
-      .remove-btn { background: rgba(255, 255, 255, 0.9); color: #ff3b30; border: none; width: 26px; height: 26px; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: absolute; top: 6px; right: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); z-index: 10; }
-      
-      .preview-section { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
-      .preview-card { background-color: #fff; border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.02); }
-      #order-preview-text { width: 100%; height: 160px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.95rem; resize: none; background-color: #fbfbfd; outline: none; font-weight: bold; }
-      .cart-summary { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); padding: 15px 30px 25px; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 999; }
-      .summary-content { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-      .total-value { font-size: 1.6rem; font-weight: 800; }
-      .total-value span { font-size: 0.9rem; color: var(--text-secondary); }
-      .button-row { display: flex; gap: 12px; }
-      .action-btn { padding: 14px 20px; font-size: 0.95rem; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; }
-      .btn-checkout { background-color: #1d1d1f; color: white; }
-      .btn-clear { background-color: #fff; color: var(--danger-color); border: 1px solid #e5e5ea; }
-      .empty-cart-message { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
-    </style>
-  </head>
-  <body>
-    <div class="header">
-      <h1>Shopping Cart</h1>
-      <a href="index.html" class="back-link">← Back</a>
-    </div>
+    const lineRegex = /^\s*[-*•]?\s*([A-Za-z0-9]+).*[xX×]\s*[*]?\(?(\d+)/i;
 
-    <div class="cart-container" id="cart-container"></div>
-    <div id="empty-cart-msg" class="empty-cart-message" style="display: none"><p>Your cart is empty</p></div>
+    lines.forEach((line) => {
+      const match = line.match(lineRegex);
+      if (match) {
+        const id = match[1].trim();
+        const qty = parseInt(match[2]);
+        const product = db.find((p) => p.id === id);
 
-    <div class="preview-section" id="preview-section" style="display: none">
-      <div class="preview-card">
-        <textarea id="order-preview-text" readonly></textarea>
-      </div>
-    </div>
-
-    <div class="cart-summary" id="cart-summary" style="display: none">
-      <div class="summary-content">
-        <div class="total-value" id="total-qty-display">0 <span>items</span></div>
-        <div class="button-row">
-          <button class="action-btn btn-clear" id="clear-cart-btn">Clear</button>
-          <button class="action-btn btn-checkout" id="checkout-btn">Copy Order</button>
-        </div>
-      </div>
-    </div>
-
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const cartContainer = document.getElementById("cart-container");
-        const cartSummary = document.getElementById("cart-summary");
-        const previewSection = document.getElementById("preview-section");
-        const previewTextarea = document.getElementById("order-preview-text");
-        const totalQtyDisplay = document.getElementById("total-qty-display");
-        const checkoutBtn = document.getElementById("checkout-btn");
-        const clearCartBtn = document.getElementById("clear-cart-btn");
-        const emptyCartMsg = document.getElementById("empty-cart-msg");
-        let cartItems = [];
-
-        function loadCart() {
-          const storedCart = localStorage.getItem("perfumeCart");
-          cartItems = storedCart ? JSON.parse(storedCart) : [];
-        }
-
-        function saveCart() {
-          localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
-        }
-
-        function updatePageState() {
-          const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-          let totalWeight = 0;
-          let totalRmbCost = 0;
-
-          cartItems.forEach((item) => {
-            const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
-            totalWeight += (isSet ? 4 : 1.2) * item.quantity;
-
-            let directCost = 0;
-            let finalTargetSku = "";
-
-            if (window.perfumeDB && window.perfumeDB.length > 0) {
-              const searchName = String(item.name || "").trim().toLowerCase();
-              const searchSku = String(item.sku || "").trim().toLowerCase();
-              const searchCaption = String(item.caption || "").trim().toLowerCase();
-
-              const mainProduct = window.perfumeDB.find(p => {
-                const tableId = String(p.id || "").trim().toLowerCase();
-                const tableSku = String(p.sku || "").trim().toLowerCase();
-                return (tableId && (searchName === tableId || searchSku === tableId)) ||
-                       (tableSku && (searchName === tableSku || searchSku === tableSku || searchCaption.includes(tableSku)));
-              });
-
-              if (mainProduct && mainProduct.id) {
-                finalTargetSku = String(mainProduct.id).trim().toLowerCase();
-              }
-            }
-
-            if (!finalTargetSku) {
-              finalTargetSku = String(item.name || "").trim().toLowerCase();
-            }
-
-            if (window.costDB && window.costDB.length > 0) {
-              const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === finalTargetSku);
-              if (matched) directCost = Number(matched.cost) || 0;
-            }
-            
-            totalRmbCost += directCost * item.quantity;
+        if (product) {
+          tempCart.push({
+            name: product.id,
+            caption: `${product.id} - ${product.name}`,
+            img: product.img,
+            quantity: qty,
+            price: Number(product.price),
+            tier: product.tier,
+            sku: product.sku,
+            supplier: product.supplier
           });
-
-          let trackingNumCount = totalQty > 80 ? 3 : (totalQty > 40 ? 2 : 1);
-          let baseShipping = 0;
-          if (totalWeight > 0) {
-            let roundedWeight = Math.ceil(totalWeight);
-            baseShipping = roundedWeight <= 3 ? 11 : 11 + (roundedWeight - 3) * 1;
-          }
-          let warehouseFee = totalQty > 0 ? (0.8 + (totalQty - 1) * 0.3 + (totalQty === 1 ? 0.7 : 1.5)) : 0;
-          const totalUsdShipping = baseShipping + warehouseFee;
-
-          if (totalQtyDisplay) totalQtyDisplay.innerHTML = `${totalQty} <span>items</span>`;
-
-          if (previewTextarea && previewTextarea.parentNode) {
-            let financeBox = document.getElementById("internal-finance-box");
-            if (!financeBox) {
-              financeBox = document.createElement("div");
-              financeBox.id = "internal-finance-box";
-              financeBox.style.cssText = "background:#fbfbfd; border:1px solid #e5e5ea; padding:12px 18px; border-radius:10px; margin:15px 0; font-size:0.85rem; color:#86868b; font-weight:600; display:flex; justify-content:space-between; align-items:center;";
-              previewTextarea.parentNode.insertBefore(financeBox, previewTextarea);
-            }
-            financeBox.innerHTML = `
-              <span style="color:#1d1d1f;">📊 Data Summary:</span>
-              <span>${totalRmbCost.toFixed(2)} | <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount} P)</span>
-            `;
-          }
-
-          // 🟢 Bug修复：优化列表生成格式，提取并联动真实数据库中的“中文名称”替代纯数字编号
-          if (previewTextarea) {
-            previewTextarea.value = cartItems.map(i => {
-              let chineseName = "";
-              // 1. 尝试从完全加载的远程数据库中寻找匹配的中文名称
-              if (window.perfumeDB && window.perfumeDB.length > 0) {
-                const matched = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(i.name).toLowerCase());
-                if (matched && matched.name) {
-                  chineseName = matched.name;
-                }
-              }
-              // 2. 降级容错机制：如果数据库还没响应，从前端生成的带中文简称的 caption 属性中拆解提取
-              if (!chineseName && i.caption && i.caption.includes(" - ")) {
-                chineseName = i.caption.split(" - ")[1];
-              }
-              
-              // 3. 决定最终标识符：优先使用找到的中文名，没有则退回 sku，最后退回编号
-              const finalIdentifier = chineseName || i.sku || i.name;
-              return `${finalIdentifier}*${i.quantity}`;
-            }).join("\n");
-          }
+          importedCount += qty;
+        } else {
+          notFoundList.push(id);
         }
+      }
+    });
 
-        window.renderCart = function () {
-          cartContainer.innerHTML = "";
-          if (cartItems.length === 0) {
-            cartSummary.style.display = "none";
-            previewSection.style.display = "none";
-            emptyCartMsg.style.display = "block";
-            return;
+    if (importedCount > 0) {
+      cartItems = tempCart;
+      saveCartToLocalStorage();
+      updateCartCount();
+      renderItemCounts();
+
+      searchInput.value = "";
+      searchTerm = "";
+      clearSearchButton.style.display = "none";
+
+      let msg = `✅ 导入成功！共计加购了 ${importedCount} 件商品。`;
+      if (notFoundList.length > 0) {
+        msg += `\n\n⚠️ 以下编号在数据库中未找到，已跳过：\n${notFoundList.join(", ")}`;
+      }
+      alert(msg);
+    } else {
+      if (lines.length > 2) {
+        alert("检测到粘贴内容，但未能识别任何有效的商品和数量，请检查格式或产品编号。");
+      }
+    }
+  }
+
+  function handleSkuStringPaste(text) {
+    const db = window.perfumeDB || [];
+    if (db.length === 0) {
+      alert("数据库尚未加载完毕，请稍候再试。");
+      return;
+    }
+
+    let cleanText = text.replace(/---.*?---/g, '');
+    cleanText = cleanText.replace(/[\u00A0\u2000-\u200B\u3000]/g, ' ');
+
+    const items = cleanText.split(/[+\n,\r]/);
+    let importedCount = 0;
+    let notFoundList = [];
+
+    items.forEach((itemStr) => {
+      const trimmedItem = itemStr.trim();
+      if (!trimmedItem) return;
+
+      const match = trimmedItem.match(/(.*?)\*\s*(\d+)/);
+      if (match) {
+        const skuName = match[1].trim();
+        const qty = parseInt(match[2], 10);
+        
+        if (!skuName || qty <= 0) return;
+
+        const product = db.find(p => p.sku && p.sku === skuName) ||
+                        db.find(p => p.name && p.name === skuName) ||
+                        db.find(p => (p.sku && p.sku.includes(skuName)) || (p.name && p.name.includes(skuName)));
+
+        if (product) {
+          const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
+          if (existingItem) {
+            existingItem.quantity += qty;
+          } else {
+            cartItems.push({
+              name: product.id,
+              caption: `${product.id} - ${product.name}`,
+              img: product.img,
+              quantity: qty,
+              price: Number(product.price),
+              tier: product.tier,
+              sku: product.sku,
+              supplier: product.supplier
+            });
           }
+          importedCount += qty;
+        } else {
+          notFoundList.push(skuName);
+        }
+      }
+    });
 
-          cartSummary.style.display = "block";
-          previewSection.style.display = "block";
-          emptyCartMsg.style.display = "none";
+    if (importedCount > 0) {
+      saveCartToLocalStorage();
+      updateCartCount();
+      renderItemCounts();
 
-          cartItems.forEach((item) => {
-            const itemEl = document.createElement("div");
-            itemEl.className = "cart-item";
-            itemEl.dataset.name = item.name;
+      searchInput.value = "";
+      searchTerm = "";
+      clearSearchButton.style.display = "none";
 
-            let isOutOfStock = false;
-            let dbChineseName = "";
-
-            if (window.perfumeDB && window.perfumeDB.length > 0) {
-              const matchedMainProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
-              if (matchedMainProduct) {
-                if (Number(matchedMainProduct.stock) === 0) {
-                  isOutOfStock = true;
-                }
-                dbChineseName = matchedMainProduct.name;
-              }
-            }
-
-            if (isOutOfStock) {
-              itemEl.classList.add("out-of-stock");
-            }
-
-            // 🟢 视觉显示优化：确保购物车卡片列表上显示的一定是“编号 - 中文名”的完整中文格式
-            const displayName = dbChineseName ? `${item.name} - ${dbChineseName}` : (item.caption || item.name);
-            const correctImgSrc = item.img || `images/${item.name}.webp`;
-
-            itemEl.innerHTML = `
-              <button class="remove-btn">&times;</button>
-              
-              <div class="product-image-container">
-                <img src="${correctImgSrc}" alt="${displayName}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
-                ${isOutOfStock ? '<div class="stock-overlay">Stock: 0</div>' : ''}
-              </div>
-
-              <div class="item-info">
-                <p class="item-name">${displayName}</p>
-                <span class="item-supplier">${item.supplier || "Unknown"}</span>
-              </div>
-              <div class="item-controls">
-                 <div class="quantity-controls">
-                    <button class="decrease-btn">-</button>
-                    <span class="quantity">${item.quantity}</span>
-                    <button class="increase-btn">+</button>
-                  </div>
-              </div>
-            `;
-            cartContainer.appendChild(itemEl);
-          });
-          updatePageState();
-        };
-
-        cartContainer.addEventListener("click", (e) => {
-          const itemEl = e.target.closest(".cart-item");
-          if (!itemEl) return;
-          const name = itemEl.dataset.name;
-          const item = cartItems.find((i) => i.name === name);
-
-          if (e.target.classList.contains("remove-btn")) {
-            cartItems = cartItems.filter((i) => i.name !== name);
-          } else if (e.target.classList.contains("increase-btn")) {
-            item.quantity++;
-          } else if (e.target.classList.contains("decrease-btn")) {
-            item.quantity--;
-            if (item.quantity <= 0) cartItems = cartItems.filter((i) => i.name !== name);
-          } else { return; }
-
-          saveCart();
-          renderCart();
-        });
-
-        checkoutBtn.addEventListener("click", () => {
-          navigator.clipboard.writeText(previewTextarea.value);
-          
-          let toast = document.getElementById("copy-toast");
-          if (!toast) {
-            toast = document.createElement("div");
-            toast.id = "copy-toast";
-            toast.style.cssText = "position:fixed; bottom:120px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:10px 20px; border-radius:20px; font-size:0.9rem; z-index:9999; transition:opacity 0.3s;";
-            document.body.appendChild(toast);
-          }
-          toast.textContent = "Copied to clipboard!";
-          toast.style.opacity = "1";
-          setTimeout(() => { toast.style.opacity = "0"; }, 1500);
-        });
-
-        clearCartBtn.addEventListener("click", () => {
-          cartItems = [];
-          saveCart();
-          renderCart();
-        });
-
-        loadCart();
-        renderCart();
-      });
-    </script>
-    <script src="db.js"></script>
-  </body>
-</html>
+      let msg = `✅ 成功解析并加购 ${importedCount} 件商品！`;
+      if (notFoundList.length > 0) {
+        msg += `\n\n⚠️ 未找到以下匹配的 SKU 或商品名称：\n${notFoundList.join(" , ")}`;
+      }
+      alert(msg);
+    } else {
+      searchInput.value = text.trim();
+      searchTerm = text.trim().toLowerCase();
+      clearSearchButton.style.display = searchTerm ? "block" : "none";
+      renderPerfumes();
+    }
+  }
+</script>
