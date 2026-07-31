@@ -11,7 +11,7 @@
         --primary-color: #007aff;
         --warning-color: #ff9800;
         --danger-color: #dc3545;
-        --success-color: #28a745; /* 新增成功色 */
+        --success-color: #28a745;
       }
       body {
         font-family:
@@ -97,7 +97,7 @@
         border: none;
         padding: 0 12px;
         height: 44px;
-        min-width: 44px; /* 稍微宽一点 */
+        min-width: 44px;
         border-radius: 22px;
         font-size: 1.5rem;
         margin-left: 10px;
@@ -118,9 +118,9 @@
         border-color: var(--danger-color);
       }
 
-      /* 【新增】SKU 提取按钮 */
+      /* SKU 提取按钮 */
       #oos-tool-btn {
-        color: #6610f2; /* 紫色，区分其他按钮 */
+        color: #6610f2;
         border-color: #d0bfff;
       }
       #oos-tool-btn:hover {
@@ -147,15 +147,9 @@
         animation: pulse-animation 0.5s ease;
       }
       @keyframes pulse-animation {
-        0% {
-          transform: scale(1);
-        }
-        50% {
-          transform: scale(1.2);
-        }
-        100% {
-          transform: scale(1);
-        }
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
       }
       .navbar {
         display: flex;
@@ -199,7 +193,7 @@
         color: #555;
         border-radius: 10px;
         display: inline-block;
-        margin-top: 8px;
+        margin-top: 6px;
         align-self: flex-start;
       }
       .filter-divider {
@@ -222,6 +216,33 @@
         color: white;
         border-color: #007bff;
       }
+
+      /* 【新增】库存状态筛选按钮样式 */
+      .stock-filter-btn {
+        background-color: #f8f9fa;
+        border-color: #ccc;
+      }
+      .stock-filter-btn[data-stock-filter="supp2-oos-supp1-in"] {
+        color: #856404;
+        background-color: #fff3cd;
+        border-color: #ffeba2;
+      }
+      .stock-filter-btn[data-stock-filter="supp2-oos-supp1-in"].active {
+        background-color: #ffc107;
+        color: #000;
+        border-color: #ffc107;
+      }
+      .stock-filter-btn[data-stock-filter="both-oos"] {
+        color: #721c24;
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+      }
+      .stock-filter-btn[data-stock-filter="both-oos"].active {
+        background-color: #dc3545;
+        color: white;
+        border-color: #dc3545;
+      }
+
       .container {
         max-width: 800px;
         margin: 0 auto;
@@ -276,7 +297,7 @@
         justify-content: center;
         font-weight: bold;
         color: #333;
-        font-size: 1.1rem;
+        font-size: 1rem;
         backdrop-filter: blur(2px);
       }
       .product-info {
@@ -303,7 +324,7 @@
         font-size: 1.1rem;
         font-weight: bold;
         color: var(--primary-color);
-        margin: 8px 0;
+        margin: 8px 0 0 0;
       }
       .add-to-cart-btn {
         background-color: #f4f4f4;
@@ -312,7 +333,7 @@
         padding: 10px;
         width: 100%;
         border-radius: 8px;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         font-weight: 600;
         cursor: pointer;
         margin-top: 10px;
@@ -347,7 +368,7 @@
         display: none;
       }
 
-      /* 【新增】模态框样式 */
+      /* 模态框样式 */
       .modal-overlay {
         position: fixed;
         top: 0;
@@ -524,6 +545,18 @@
         <button class="nav-btn supplier-btn" data-supplier="供应商五">
           供应商五
         </button>
+
+        <!-- 🟢 【新增】：智能库存状态筛选按钮 -->
+        <hr class="filter-divider" />
+        <button class="nav-btn stock-filter-btn active" data-stock-filter="all">
+          全部库存
+        </button>
+        <button class="nav-btn stock-filter-btn" data-stock-filter="supp2-oos-supp1-in">
+          供应商二缺货 & 供应商一有货 🟡
+        </button>
+        <button class="nav-btn stock-filter-btn" data-stock-filter="both-oos">
+          两家均缺货 🔴
+        </button>
       </div>
     </div>
 
@@ -549,6 +582,7 @@
     <script>
       let currentBrandFilter = "all";
       let currentSupplierFilter = "all";
+      let currentStockFilter = "all"; // 🟢 【新增】：库存状态筛选标记
       let searchTerm = "";
       let cartItems = [];
 
@@ -565,6 +599,7 @@
       const brandButtons = document.querySelectorAll(".nav-btn[data-brand]");
       const showAllButton = document.getElementById("show-all-btn");
       const supplierButtons = document.querySelectorAll(".supplier-btn");
+      const stockFilterButtons = document.querySelectorAll(".stock-filter-btn"); // 🟢 【新增】
 
       const headerContainer = document.querySelector(".header-container");
       function adjustBodyPadding() {
@@ -577,7 +612,6 @@
       // SKU 提取逻辑
       oosToolBtn.addEventListener("click", () => {
         const db = window.perfumeDB || [];
-        // 1. 筛选：供应商二 + 库存为0 (不包含 -1)
         const targets = db.filter(
           (p) => p.supplier === "供应商二" && Number(p.stock) === 0,
         );
@@ -595,9 +629,7 @@
 
         navigator.clipboard
           .writeText(listText)
-          .then(() => {
-            // console.log('Copied automatically');
-          })
+          .then(() => {})
           .catch((err) => {
             console.error("Auto-copy failed", err);
           });
@@ -626,7 +658,7 @@
         }
 
         const filteredPerfumes = db.filter((perfume) => {
-          // 【核心修改】如果库存是 -1，直接不显示（但 0 会显示）
+          // 如果库存是 -1，直接不显示
           if (Number(perfume.stock) === -1) return false;
 
           const matchesBrand =
@@ -635,7 +667,24 @@
           const matchesSupplier =
             currentSupplierFilter === "all" ||
             perfume.supplier === currentSupplierFilter;
+
+          // 🟢 【新增】：准确判断两个供应商的缺货状态
+          // 供应商二使用 stock，供应商一使用 stock2（若未单独定义 stock2，且含有 sku2 则默认有货）
+          const isSupp2Oos = Number(perfume.stock) === 0;
+          const hasSupp1 = Boolean(perfume.sku2);
+          const isSupp1Oos = perfume.stock2 !== undefined ? Number(perfume.stock2) === 0 : false;
+
+          let matchesStock = true;
+          if (currentStockFilter === "supp2-oos-supp1-in") {
+            // 供应商二缺货，且 供应商一有货
+            matchesStock = isSupp2Oos && hasSupp1 && !isSupp1Oos;
+          } else if (currentStockFilter === "both-oos") {
+            // 两家均缺货（或者供应商二缺货且没有供应商一的SKU）
+            matchesStock = isSupp2Oos && (!hasSupp1 || isSupp1Oos);
+          }
+
           const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
+          const sku2Str = perfume.sku2 ? String(perfume.sku2).toLowerCase() : "";
           const nameStr = perfume.name
             ? String(perfume.name).toLowerCase()
             : "";
@@ -645,32 +694,52 @@
           return (
             matchesBrand &&
             matchesSupplier &&
+            matchesStock &&
             (nameStr.includes(term) ||
               idStr.includes(term) ||
-              skuStr.includes(term))
+              skuStr.includes(term) ||
+              sku2Str.includes(term))
           );
         });
 
         if (filteredPerfumes.length === 0) {
-          perfumeList.innerHTML = "<p>No products found.</p>";
+          perfumeList.innerHTML = "<p style='text-align:center; width:100%; grid-column: 1/-1;'>No products found.</p>";
         }
 
         filteredPerfumes.forEach((perfume) => {
           const card = document.createElement("div");
           card.className = "product-card";
-          const isOutOfStock = Number(perfume.stock) === 0;
 
-          if (isOutOfStock) card.classList.add("out-of-stock");
+          // 🟢 动态计算两个供应商状态
+          const isSupp2Oos = Number(perfume.stock) === 0;
+          const hasSupp1 = Boolean(perfume.sku2);
+          const isSupp1Oos = perfume.stock2 !== undefined ? Number(perfume.stock2) === 0 : false;
 
-          // 强制用 ID 编号去本地 images 文件夹抓图
-         const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
+          // 如果两家都没货，加入虚线外框
+          if (isSupp2Oos && (!hasSupp1 || isSupp1Oos)) {
+            card.classList.add("out-of-stock");
+          }
+
+          const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
+
+          // 计算按钮文字与样式
+          let btnText = "Add to Cart";
+          let btnOosClass = false;
+          if (isSupp2Oos) {
+            btnOosClass = true;
+            if (hasSupp1 && !isSupp1Oos) {
+              btnText = "Add (供二无/供一有)";
+            } else {
+              btnText = "Add (两家均无货)";
+            }
+          }
 
           card.innerHTML = `
             <div class="product-image-container">
               <img src="${correctImgSrc}" alt="${perfume.name}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
               ${
-                isOutOfStock
-                  ? '<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">Stock: 0</div>'
+                isSupp2Oos && (!hasSupp1 || isSupp1Oos)
+                  ? '<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">两家均缺货</div>'
                   : ""
               }
               <div class="item-count-badge" id="count-${perfume.id}"></div>
@@ -680,12 +749,27 @@
               <p class="product-name">${perfume.name}</p>
               <p class="product-price">$${perfume.price}</p>
               <span class="supplier-badge">${perfume.supplier || "Unknown"}</span>
+
+              <!-- 🟢 【新增】：双供应商库存直观显示标签 -->
+              <div style="margin-top: 8px; font-size: 0.75rem; border-top: 1px dashed #eee; padding-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+                <div style="color: ${isSupp2Oos ? '#dc3545' : '#28a745'}; display: flex; justify-content: space-between;">
+                  <span>供应商二:</span>
+                  <strong>${isSupp2Oos ? '缺货' : '有货'}</strong>
+                </div>
+                ${
+                  hasSupp1
+                    ? `<div style="color: ${isSupp1Oos ? '#dc3545' : '#28a745'}; display: flex; justify-content: space-between;">
+                        <span>供应商一:</span>
+                        <strong>${isSupp1Oos ? '缺货' : '有货'}</strong>
+                       </div>`
+                    : '<div style="color:#aaa;">供应商一: 无SKU</div>'
+                }
+              </div>
             </div>
             
-            <button class="add-to-cart-btn ${isOutOfStock ? "oos-allowed" : ""}" data-id="${perfume.id}">
-              ${isOutOfStock ? "Add (No Stock)" : "Add to Cart"}
+            <button class="add-to-cart-btn ${btnOosClass ? "oos-allowed" : ""}" data-id="${perfume.id}">
+              ${btnText}
             </button>
-            
           `;
           perfumeList.appendChild(card);
         });
@@ -743,8 +827,7 @@
 
         if (!perfumeData) return;
 
-        // 【已核对】解构时把你在表格里新加的 cost 一并提取出来
-        const { id, name, img, price, tier, sku, sku2,supplier, cost } = perfumeData;
+        const { id, name, img, price, tier, sku, sku2, supplier, cost } = perfumeData;
         const existingItem = cartItems.find((cartItem) => cartItem.name === id);
 
         if (existingItem) {
@@ -760,7 +843,6 @@
             sku: sku || "",
             sku2: sku2 || "",
             supplier: supplier,
-            // 【核心注入】让加购的商品带上成本属性，安全转化为纯数字，若没填则默认为0
             cost: cost ? Number(cost) : 0
           });
         }
@@ -806,14 +888,11 @@
           );
           
           const isOrder = pastedText.includes("New Order") || /[xX×]\s*[*]?\(?\d+/.test(pastedText);
-          
-          // 【新增】检测是否包含 "名称*数字" 的 SKU 拼接格式
           const isSkuString = /\S+\*\d+/.test(pastedText);
 
           if (isOrder && pastedText.includes("\n")) {
             handleOrderPaste(pastedText);
           } else if (isSkuString) {
-            // 如果是 SKU 拼接格式，调用新的处理函数
             handleSkuStringPaste(pastedText);
           } else {
             searchInput.value = pastedText;
@@ -862,9 +941,8 @@
                   price: Number(product.price),
                   tier: product.tier,
                   sku: product.sku || "",
-                  sku2: product.sku2 || "", // 🟢 补上 sku2
+                  sku2: product.sku2 || "",
                   supplier: product.supplier,
-                  // ⭐【同步安全修补】：批量订单导入时同步注入成本，确保其不为 0
                   cost: product.cost ? Number(product.cost) : 0
                 });
                 importedCount += qty;
@@ -898,29 +976,24 @@
           }
         }
 
-       function handleSkuStringPaste(text) {
+        function handleSkuStringPaste(text) {
           const db = window.perfumeDB || [];
           if (db.length === 0) {
             alert("Database not loaded yet.");
             return;
           }
 
-          // 1. 清理各种干扰的表头和群聊多余的特殊空格
           let cleanText = text.replace(/---.*?---/g, '');
-          // 统一把所有的特殊空白符（比如网页硬空格 &nbsp;）替换成标准普通空格
           cleanText = cleanText.replace(/[\u00A0\u2000-\u200B\u3000]/g, ' ');
 
-          // 2. 兼容各种分割符号：加号(+)、换行(\n)、逗号(,) 均可完美切分
           const items = cleanText.split(/[+\n,\r]/);
           let importedCount = 0;
           let notFoundList = [];
 
           items.forEach((itemStr) => {
-            // 清理单行前后空格
             const trimmedItem = itemStr.trim();
             if (!trimmedItem) return;
 
-            // 3. 超强正则匹配：名字*数量，名字 * 数量，或者 名字* 数量 都能完美识别
             const match = trimmedItem.match(/(.*?)\*\s*(\d+)/);
             if (match) {
               const skuName = match[1].trim();
@@ -928,7 +1001,6 @@
               
               if (!skuName || qty <= 0) return;
 
-              // 4. 智能查找匹配：优先匹配 SKU1 -> SKU2 -> 名称 -> 模糊匹配
               const product = db.find(p => p.sku && p.sku === skuName) ||
                               db.find(p => p.sku2 && p.sku2 === skuName) ||
                               db.find(p => p.name && p.name === skuName) ||
@@ -947,20 +1019,18 @@
                     price: Number(product.price),
                     tier: product.tier,
                     sku: product.sku || "",
-                    sku2: product.sku2 || "", // 🟢 新增：记录仓库2的 SKU
+                    sku2: product.sku2 || "",
                     supplier: product.supplier,
-                    // ⭐【同步安全修补】：SKU字符串切分导入时同步注入成本，确保其不为 0
                     cost: product.cost ? Number(product.cost) : 0
                   });
                 }
                 importedCount += qty;
-              }else {
-                notFoundList.push(skuName); // 记录未能匹配的名称
+              } else {
+                notFoundList.push(skuName);
               }
             }
           });
 
-          // 5. 处理最终结果与反馈
           if (importedCount > 0) {
             saveCartToLocalStorage();
             updateCartCount();
@@ -976,7 +1046,6 @@
             }
             alert(msg);
           } else {
-            // 如果实在解析不出，当成普通搜索处理
             searchInput.value = text.trim();
             searchTerm = text.trim().toLowerCase();
             clearSearchButton.style.display = searchTerm ? "block" : "none";
@@ -1005,6 +1074,16 @@
           button.addEventListener("click", () => {
             currentSupplierFilter = button.dataset.supplier;
             supplierButtons.forEach((btn) => btn.classList.remove("active"));
+            button.classList.add("active");
+            renderPerfumes();
+          });
+        });
+
+        // 🟢 【新增】：库存状态筛选按钮点击事件
+        stockFilterButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            currentStockFilter = button.dataset.stockFilter;
+            stockFilterButtons.forEach((btn) => btn.classList.remove("active"));
             button.classList.add("active");
             renderPerfumes();
           });
