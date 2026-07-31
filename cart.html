@@ -200,7 +200,7 @@ if (previewTextarea) {
 }
         }
 
-        window.renderCart = function () {
+     window.renderCart = function () {
           cartContainer.innerHTML = "";
           if (cartItems.length === 0) {
             cartSummary.style.display = "none";
@@ -218,15 +218,21 @@ if (previewTextarea) {
             itemEl.className = "cart-item";
             itemEl.dataset.name = item.name;
 
-            let isOutOfStock = false;
+            // 🟢 匹配数据库并实时计算供应商库存状态
+            let matchedProduct = null;
             if (window.perfumeDB && window.perfumeDB.length > 0) {
-              const matchedMainProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
-              if (matchedMainProduct && Number(matchedMainProduct.stock) === 0) {
-                isOutOfStock = true;
-              }
+              matchedProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
             }
 
-            if (isOutOfStock) {
+            // 判断供应商二与供应商一的库存
+            const isSupp2Oos = matchedProduct ? Number(matchedProduct.stock) === 0 : false;
+            const hasSupp1 = matchedProduct ? Boolean(matchedProduct.sku2) : Boolean(item.sku2);
+            const isSupp1Oos = (matchedProduct && matchedProduct.stock2 !== undefined) ? Number(matchedProduct.stock2) === 0 : false;
+            
+            // 是否两家均无货
+            const isBothOutOfStock = isSupp2Oos && (!hasSupp1 || isSupp1Oos);
+
+            if (isBothOutOfStock) {
               itemEl.classList.add("out-of-stock");
             }
 
@@ -238,13 +244,30 @@ if (previewTextarea) {
               
               <div class="product-image-container">
                 <img src="${correctImgSrc}" alt="${displayName}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
-                ${isOutOfStock ? '<div class="stock-overlay">Stock: 0</div>' : ''}
+                ${isBothOutOfStock ? '<div class="stock-overlay" style="color:var(--danger-color); font-size:0.85rem; font-weight:bold;">两家均缺货</div>' : ''}
               </div>
 
               <div class="item-info">
                 <p class="item-name">${displayName}</p>
                 <span class="item-supplier">${item.supplier || "Unknown"}</span>
+
+                <!-- 🟢 【新增】：购物车商品卡片下方增加双供应商库存展示 -->
+                <div style="margin-top: 6px; font-size: 0.72rem; border-top: 1px dashed #e5e5ea; padding-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+                  <div style="color: ${isSupp2Oos ? 'var(--danger-color)' : 'var(--success-color)'}; display: flex; justify-content: space-between; font-weight: 600;">
+                    <span>供应商二:</span>
+                    <span>${isSupp2Oos ? '缺货' : '有货'}</span>
+                  </div>
+                  ${
+                    hasSupp1
+                      ? `<div style="color: ${isSupp1Oos ? 'var(--danger-color)' : 'var(--success-color)'}; display: flex; justify-content: space-between; font-weight: 600;">
+                          <span>供应商一:</span>
+                          <span>${isSupp1Oos ? '缺货' : '有货'}</span>
+                         </div>`
+                      : '<div style="color:var(--text-secondary); display: flex; justify-content: space-between;"><span>供应商一:</span><span>无SKU</span></div>'
+                  }
+                </div>
               </div>
+
               <div class="item-controls">
                  <div class="quantity-controls">
                     <button class="decrease-btn">-</button>
