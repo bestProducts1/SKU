@@ -744,7 +744,7 @@
         if (!perfumeData) return;
 
         // 【已核对】解构时把你在表格里新加的 cost 一并提取出来
-        const { id, name, img, price, tier, sku, supplier, cost } = perfumeData;
+        const { id, name, img, price, tier, sku, sku2,supplier, cost } = perfumeData;
         const existingItem = cartItems.find((cartItem) => cartItem.name === id);
 
         if (existingItem) {
@@ -757,7 +757,8 @@
             quantity: 1,
             price: Number(price),
             tier: tier,
-            sku: sku,
+            sku: sku || "",
+            sku2: sku2 || "",
             supplier: supplier,
             // 【核心注入】让加购的商品带上成本属性，安全转化为纯数字，若没填则默认为0
             cost: cost ? Number(cost) : 0
@@ -860,7 +861,8 @@
                   quantity: qty,
                   price: Number(product.price),
                   tier: product.tier,
-                  sku: product.sku,
+                  sku: product.sku || "",
+                  sku2: product.sku2 || "", // 🟢 补上 sku2
                   supplier: product.supplier,
                   // ⭐【同步安全修补】：批量订单导入时同步注入成本，确保其不为 0
                   cost: product.cost ? Number(product.cost) : 0
@@ -926,10 +928,11 @@
               
               if (!skuName || qty <= 0) return;
 
-              // 4. 智能查找匹配：优先精确匹配 SKU -> 其次名称 -> 最后模糊包含匹配
+              // 4. 智能查找匹配：优先匹配 SKU1 -> SKU2 -> 名称 -> 模糊匹配
               const product = db.find(p => p.sku && p.sku === skuName) ||
+                              db.find(p => p.sku2 && p.sku2 === skuName) ||
                               db.find(p => p.name && p.name === skuName) ||
-                              db.find(p => (p.sku && p.sku.includes(skuName)) || (p.name && p.name.includes(skuName)));
+                              db.find(p => (p.sku && p.sku.includes(skuName)) || (p.sku2 && p.sku2.includes(skuName)) || (p.name && p.name.includes(skuName)));
 
               if (product) {
                 const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
@@ -943,14 +946,15 @@
                     quantity: qty,
                     price: Number(product.price),
                     tier: product.tier,
-                    sku: product.sku,
+                    sku: product.sku || "",
+                    sku2: product.sku2 || "", // 🟢 新增：记录仓库2的 SKU
                     supplier: product.supplier,
                     // ⭐【同步安全修补】：SKU字符串切分导入时同步注入成本，确保其不为 0
                     cost: product.cost ? Number(product.cost) : 0
                   });
                 }
                 importedCount += qty;
-              } else {
+              }else {
                 notFoundList.push(skuName); // 记录未能匹配的名称
               }
             }

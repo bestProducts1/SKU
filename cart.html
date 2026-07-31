@@ -167,10 +167,37 @@
             `;
           }
 
-          // 🟢 核心修正：彻底回归你原本包含中文简称的 SKU*数量 纯净列表格式！
-          if (previewTextarea) {
-            previewTextarea.value = cartItems.map(i => `${i.sku || i.name}*${i.quantity}`).join("\n");
-          }
+         // 🟢 替换后的双仓库 SKU 导出逻辑
+if (previewTextarea) {
+  previewTextarea.value = cartItems.map(i => {
+    let sku1 = String(i.sku || "").trim();
+    let sku2 = String(i.sku2 || "").trim();
+
+    // 防错兜底：若购物车历史缓存未含 sku2，实时从全局数据库中匹配补全
+    if (!sku1 && !sku2 && window.perfumeDB && window.perfumeDB.length > 0) {
+      const searchKey = String(i.name || "").trim().toLowerCase();
+      const matched = window.perfumeDB.find(p => 
+        String(p.id || "").trim().toLowerCase() === searchKey ||
+        String(p.sku || "").trim().toLowerCase() === searchKey
+      );
+      if (matched) {
+        sku1 = String(matched.sku || "").trim();
+        sku2 = String(matched.sku2 || "").trim();
+      }
+    }
+
+    const qty = i.quantity;
+    if (sku1 && sku2) {
+      return `${sku1}*${qty}/${sku2}*${qty}`; // 两库均有货
+    } else if (sku1) {
+      return `${sku1}*${qty}`;                // 仅仓库一有货
+    } else if (sku2) {
+      return `${sku2}*${qty}`;                // 仅仓库二有货
+    } else {
+      return `${i.name}*${qty}`;              // 保底格式
+    }
+  }).join("\n");
+}
         }
 
         window.renderCart = function () {
