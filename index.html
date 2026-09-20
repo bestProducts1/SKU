@@ -36,8 +36,15 @@
         display: flex;
         align-items: center;
         padding: 10px 0;
-        max-width: 800px;
+        max-width: 1200px;
         margin: 0 auto;
+      }
+      .filter-group {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
       }
       .search-container {
         position: relative;
@@ -185,12 +192,12 @@
         border-color: #d9534f;
         color: white;
       }
-      .supplier-badge {
+      .warehouse-badge {
         font-size: 0.75rem;
-        font-weight: 500;
+        font-weight: 700;
         padding: 3px 8px;
-        background-color: #eee;
-        color: #555;
+        background-color: #eef5ff;
+        color: #0068d9;
         border-radius: 10px;
         display: inline-block;
         margin-top: 6px;
@@ -203,15 +210,15 @@
         border-top: 1px solid #eee;
         margin: 5px 0;
       }
-      .supplier-btn {
+      .warehouse-btn {
         background-color: #f0f6ff;
         color: #007bff;
         border: 1px solid #b3d1ff;
       }
-      .supplier-btn:hover {
+      .warehouse-btn:hover {
         background-color: #e0ecff;
       }
-      .supplier-btn.active {
+      .warehouse-btn.active {
         background-color: #007bff;
         color: white;
         border-color: #007bff;
@@ -222,22 +229,22 @@
         background-color: #f8f9fa;
         border-color: #ccc;
       }
-      .stock-filter-btn[data-stock-filter="supp2-oos-supp1-in"] {
-        color: #856404;
-        background-color: #fff3cd;
-        border-color: #ffeba2;
+      .stock-filter-btn[data-stock-filter="available"] {
+        color: #176b35;
+        background-color: #e7f7ed;
+        border-color: #a9dfba;
       }
-      .stock-filter-btn[data-stock-filter="supp2-oos-supp1-in"].active {
-        background-color: #ffc107;
-        color: #000;
-        border-color: #ffc107;
+      .stock-filter-btn[data-stock-filter="available"].active {
+        background-color: #28a745;
+        color: white;
+        border-color: #28a745;
       }
-      .stock-filter-btn[data-stock-filter="both-oos"] {
+      .stock-filter-btn[data-stock-filter="below-threshold"] {
         color: #721c24;
         background-color: #f8d7da;
         border-color: #f5c6cb;
       }
-      .stock-filter-btn[data-stock-filter="both-oos"].active {
+      .stock-filter-btn[data-stock-filter="below-threshold"].active {
         background-color: #dc3545;
         color: white;
         border-color: #dc3545;
@@ -459,7 +466,7 @@
         <button
           id="oos-tool-btn"
           class="icon-btn"
-          title="Copy Supplier 2 Out-of-Stock SKUs"
+          title="Copy below-19 product SKUs for the selected warehouse"
         >
           📋
         </button>
@@ -485,84 +492,29 @@
       </div>
 
       <div class="navbar">
-        <button class="nav-btn" data-brand="Dior">Dior</button>
-        <button class="nav-btn" data-brand="Chanel">Chanel</button>
-        <button class="nav-btn" data-brand="Louis Vuitton">
-          Louis Vuitton
-        </button>
-        <button class="nav-btn" data-brand="Tom Ford">Tom Ford</button>
-        <button class="nav-btn" data-brand="Creed">Creed</button>
-        <button class="nav-btn" data-brand="Yves Saint Laurent">
-          Yves Saint Laurent
-        </button>
-        <button class="nav-btn" data-brand="Valentino">Valentino</button>
-        <button class="nav-btn" data-brand="Versace">Versace</button>
-        <button class="nav-btn" data-brand="Jean Paul Gaultier">
-          Jean Paul Gaultier
-        </button>
-        <button class="nav-btn" data-brand="Parfums de Marly">
-          Parfums de Marly
-        </button>
-        <button class="nav-btn" data-brand="Giorgio Armani">
-          Giorgio Armani
-        </button>
-        <button class="nav-btn" data-brand="Maison Francis Kurkdjian">
-          Maison Francis Kurkdjian
-        </button>
-        <button class="nav-btn" data-brand="Gucci">Gucci</button>
-        <button class="nav-btn" data-brand="Lattafa">Lattafa</button>
-        <button class="nav-btn" data-brand="Azzaro">Azzaro</button>
-        <button class="nav-btn" data-brand="Carolina Herrera">
-          Carolina Herrera
-        </button>
-        <button class="nav-btn" data-brand="Paco Rabanne">Paco Rabanne</button>
-        <button class="nav-btn" data-brand="Initio">Initio</button>
-        <button class="nav-btn" data-brand="Xerjoff">Xerjoff</button>
-        <button class="nav-btn" data-brand="Kayali">Kayali</button>
-        <button class="nav-btn" data-brand="Amouage">Amouage</button>
-        <button class="nav-btn" data-brand="Burberry">Burberry</button>
-        <button class="nav-btn" data-brand="Prada">Prada</button>
-        <button class="nav-btn" data-brand="Ralph Lauren">Ralph Lauren</button>
-        <button class="nav-btn" data-brand="BVLGARI">BVLGARI</button>
-        <button class="nav-btn" data-brand="Givenchy">Givenchy</button>
-        <button class="nav-btn" data-brand="Kilian">Kilian</button>
-        <button class="nav-btn" data-brand="Lancôme">Lancôme</button>
-        <button class="nav-btn all-btn active" id="show-all-btn">
-          All Brands
-        </button>
+        <div class="filter-group" id="brand-filter-container">
+          <button class="nav-btn all-btn active" data-brand="all">All Brands</button>
+        </div>
 
         <hr class="filter-divider" />
-        <button
-          class="nav-btn supplier-btn active"
-          id="supplier-all-btn"
-          data-supplier="all"
-        >
-          All Suppliers
-        </button>
-        <button class="nav-btn supplier-btn" data-supplier="供应商一">
-          供应商一
-        </button>
-        <button class="nav-btn supplier-btn" data-supplier="供应商二">
-          供应商二
-        </button>
-        <button class="nav-btn supplier-btn" data-supplier="供应商三">
-          供应商三
-        </button>
-        <button class="nav-btn supplier-btn" data-supplier="供应商五">
-          供应商五
-        </button>
+        <div class="filter-group" id="warehouse-filter-container">
+          <button class="nav-btn warehouse-btn active" data-warehouse="all">
+            All Warehouses
+          </button>
+        </div>
 
-        <!-- 🟢 【新增】：智能库存状态筛选按钮 -->
         <hr class="filter-divider" />
-        <button class="nav-btn stock-filter-btn active" data-stock-filter="all">
-          全部库存
-        </button>
-        <button class="nav-btn stock-filter-btn" data-stock-filter="supp2-oos-supp1-in">
-          供应商二缺货 & 供应商一有货 🟡
-        </button>
-        <button class="nav-btn stock-filter-btn" data-stock-filter="both-oos">
-          两家均缺货 🔴
-        </button>
+        <div class="filter-group" id="stock-filter-container">
+          <button class="nav-btn stock-filter-btn active" data-stock-filter="all">
+            All Inventory
+          </button>
+          <button class="nav-btn stock-filter-btn" data-stock-filter="available">
+            Available (19+)
+          </button>
+          <button class="nav-btn stock-filter-btn" data-stock-filter="below-threshold">
+            Below 19
+          </button>
+        </div>
       </div>
     </div>
 
@@ -573,7 +525,7 @@
     <div class="modal-overlay" id="sku-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <div class="modal-title">Supplier 2 Out-of-Stock SKUs</div>
+          <div class="modal-title" id="sku-modal-title">Below-19 Product SKUs</div>
           <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body" id="modal-sku-list"></div>
@@ -587,10 +539,84 @@
 
     <script>
       let currentBrandFilter = "all";
-      let currentSupplierFilter = "all";
-      let currentStockFilter = "all"; // 🟢 【新增】：库存状态筛选标记
+      let currentWarehouseFilter = "all";
+      let currentStockFilter = "all";
       let searchTerm = "";
       let cartItems = [];
+
+      const FEATURED_BRANDS = [
+        "Tom Ford",
+        "Chanel",
+        "Gucci",
+        "Valentino",
+        "Lancôme",
+        "Yves Saint Laurent",
+        "Paco Rabanne",
+        "Creed",
+        "Jean Paul Gaultier",
+        "Maison Francis Kurkdjian",
+        "Dior",
+        "Versace",
+        "Giorgio Armani",
+        "Prada",
+        "Xerjoff",
+        "Louis Vuitton",
+        "Carolina Herrera",
+        "Burberry",
+        "Initio",
+        "Ralph Lauren",
+        "Parfums de Marly",
+        "Le Labo",
+        "Amouage",
+        "Givenchy",
+        "Kayali",
+        "Kilian",
+        "Azzaro",
+        "Byredo",
+        "Hugo Boss",
+        "Dolce & Gabbana",
+        "Mugler",
+        "Xerjoff Casamorati",
+        "Victoria's Secret",
+        "Bond No. 9",
+        "Penhaligon's",
+        "Marc Jacobs",
+        "Armaf",
+        "Jo Malone",
+        "Viktor&Rolf",
+        "Hermès",
+        "Bvlgari",
+        "Moschino",
+      ];
+
+      function normalizeBrandName(value) {
+        return String(value || "")
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/&/g, " and ")
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
+          .replace(/\s+/g, " ");
+      }
+
+      const FEATURED_BRANDS_NORMALIZED = FEATURED_BRANDS.map(normalizeBrandName);
+
+      function compareBrandsLikeCatalog(a, b) {
+        const aIndex = FEATURED_BRANDS_NORMALIZED.indexOf(normalizeBrandName(a));
+        const bIndex = FEATURED_BRANDS_NORMALIZED.indexOf(normalizeBrandName(b));
+        const aRank = aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex;
+        const bRank = bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex;
+        return aRank - bRank || String(a).localeCompare(String(b));
+      }
+
+      function getCatalogBrandDisplayName(value) {
+        const rawBrand = String(value || "").trim();
+        const featuredIndex = FEATURED_BRANDS_NORMALIZED.indexOf(
+          normalizeBrandName(rawBrand),
+        );
+        return featuredIndex < 0 ? rawBrand : FEATURED_BRANDS[featuredIndex];
+      }
 
       const perfumeList = document.getElementById("perfume-list");
       const searchInput = document.getElementById("search-input");
@@ -601,11 +627,10 @@
 
       const oosToolBtn = document.getElementById("oos-tool-btn");
       const skuModal = document.getElementById("sku-modal");
-
-      const brandButtons = document.querySelectorAll(".nav-btn[data-brand]");
-      const showAllButton = document.getElementById("show-all-btn");
-      const supplierButtons = document.querySelectorAll(".supplier-btn");
-      const stockFilterButtons = document.querySelectorAll(".stock-filter-btn"); // 🟢 【新增】
+      const skuModalTitle = document.getElementById("sku-modal-title");
+      const brandFilterContainer = document.getElementById("brand-filter-container");
+      const warehouseFilterContainer = document.getElementById("warehouse-filter-container");
+      const stockFilterContainer = document.getElementById("stock-filter-container");
 
       const headerContainer = document.querySelector(".header-container");
       function adjustBodyPadding() {
@@ -615,21 +640,99 @@
         }
       }
 
-      // SKU 提取逻辑
+      function getOrderWarehouseCode(orderProduct) {
+        const match = String(orderProduct && orderProduct.sku || "")
+          .trim()
+          .toUpperCase()
+          .match(/^([A-Z]+)-/);
+        return match ? match[1] : "";
+      }
+
+      function getMappedOrderProduct(perfume) {
+        return window.findOrderCatalogProduct
+          ? window.findOrderCatalogProduct(perfume)
+          : null;
+      }
+
+      function getCatalogProductsForFilters() {
+        return (window.orderDB || []).filter(
+          (product) =>
+            String(product.sku || "").trim() &&
+            String(product.name || product.brand || "").trim(),
+        );
+      }
+
+      function renderWarehouseButtons() {
+        const warehouses = Array.from(
+          new Set(getCatalogProductsForFilters().map(getOrderWarehouseCode).filter(Boolean)),
+        ).sort();
+        if (currentWarehouseFilter !== "all" && !warehouses.includes(currentWarehouseFilter)) {
+          currentWarehouseFilter = "all";
+        }
+        warehouseFilterContainer.innerHTML = "";
+        ["all", ...warehouses].forEach((warehouse) => {
+          const button = document.createElement("button");
+          button.className = `nav-btn warehouse-btn${currentWarehouseFilter === warehouse ? " active" : ""}`;
+          button.dataset.warehouse = warehouse;
+          button.textContent = warehouse === "all" ? "All Warehouses" : `${warehouse} Warehouse`;
+          warehouseFilterContainer.appendChild(button);
+        });
+      }
+
+      function renderBrandButtons() {
+        const brandMap = new Map();
+        getCatalogProductsForFilters()
+          .filter(
+            (product) =>
+              currentWarehouseFilter === "all" ||
+              getOrderWarehouseCode(product) === currentWarehouseFilter,
+          )
+          .forEach((product) => {
+            const rawBrand = String(product.brand || "").trim();
+            const key = normalizeBrandName(rawBrand);
+            if (!key || brandMap.has(key)) return;
+            brandMap.set(key, getCatalogBrandDisplayName(rawBrand));
+          });
+        const brands = Array.from(brandMap, ([key, label]) => ({ key, label }))
+          .sort((a, b) => compareBrandsLikeCatalog(a.label, b.label));
+        if (
+          currentBrandFilter !== "all" &&
+          !brands.some((brand) => brand.key === currentBrandFilter)
+        ) {
+          currentBrandFilter = "all";
+        }
+        brandFilterContainer.innerHTML = "";
+        [{ key: "all", label: "All Brands" }, ...brands].forEach((brand) => {
+          const button = document.createElement("button");
+          button.className = `nav-btn${brand.key === "all" ? " all-btn" : ""}${currentBrandFilter === brand.key ? " active" : ""}`;
+          button.dataset.brand = brand.key;
+          button.textContent = brand.label;
+          brandFilterContainer.appendChild(button);
+        });
+      }
+
+      // 复制当前仓库低于展示阈值的客户 SKU。
       oosToolBtn.addEventListener("click", () => {
-        const db = window.perfumeDB || [];
-        const targets = db.filter(
-          (p) => p.supplier === "供应商二" && Number(p.stock) === 0,
+        const targets = getCatalogProductsForFilters().filter(
+          (product) =>
+            Number(product.stock) < 19 &&
+            (currentWarehouseFilter === "all" ||
+              getOrderWarehouseCode(product) === currentWarehouseFilter) &&
+            (currentBrandFilter === "all" ||
+              normalizeBrandName(product.brand) === currentBrandFilter),
         );
 
         if (targets.length === 0) {
-          alert("Good news! No out-of-stock items found for 供应商二.");
+          alert("No below-19 products found for the current filters.");
           return;
         }
 
-        const skus = targets.map((p) => p.sku || p.id);
+        const skus = targets.map((product) => product.sku);
         const listText = skus.join("\n");
 
+        skuModalTitle.textContent = currentWarehouseFilter === "all"
+          ? "Below-19 Product SKUs"
+          : `${currentWarehouseFilter} Warehouse Below-19 SKUs`;
         document.getElementById("modal-sku-list").textContent = listText;
         skuModal.classList.add("open");
 
@@ -663,37 +766,32 @@
           return;
         }
 
-        const filteredPerfumes = db.filter((perfume) => {
-          // 如果库存是 -1，直接不显示
-          if (Number(perfume.stock) === -1) return false;
+        renderWarehouseButtons();
+        renderBrandButtons();
 
+        const filteredPerfumes = db.filter((perfume) => {
+          const orderProduct = getMappedOrderProduct(perfume);
+          if (!orderProduct) return false;
+
+          const warehouseCode = getOrderWarehouseCode(orderProduct);
+          const catalogBrand = String(orderProduct.brand || perfume.brand || "").trim();
           const matchesBrand =
             currentBrandFilter === "all" ||
-            perfume.brand === currentBrandFilter;
-          const matchesSupplier =
-            currentSupplierFilter === "all" ||
-            perfume.supplier === currentSupplierFilter;
-
-          // 🟢 【新增】：准确判断两个供应商的缺货状态
-          // 供应商二使用 stock，供应商一使用 stock2（若未单独定义 stock2，且含有 sku2 则默认有货）
-          const isSupp2Oos = Number(perfume.stock) === 0;
-          const hasSupp1 = Boolean(perfume.sku2);
-          const isSupp1Oos = perfume.stock2 !== undefined ? Number(perfume.stock2) === 0 : false;
+            normalizeBrandName(catalogBrand) === currentBrandFilter;
+          const matchesWarehouse =
+            currentWarehouseFilter === "all" ||
+            warehouseCode === currentWarehouseFilter;
 
           let matchesStock = true;
-          if (currentStockFilter === "supp2-oos-supp1-in") {
-            // 供应商二缺货，且 供应商一有货
-            matchesStock = isSupp2Oos && hasSupp1 && !isSupp1Oos;
-          } else if (currentStockFilter === "both-oos") {
-            // 两家均缺货（或者供应商二缺货且没有供应商一的SKU）
-            matchesStock = isSupp2Oos && (!hasSupp1 || isSupp1Oos);
+          if (currentStockFilter === "available") {
+            matchesStock = Number(orderProduct.stock) >= 19;
+          } else if (currentStockFilter === "below-threshold") {
+            matchesStock = Number(orderProduct.stock) < 19;
           }
 
           const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
           const sku2Str = perfume.sku2 ? String(perfume.sku2).toLowerCase() : "";
-          const orderSkuStr = window.getOrderSkuForProduct
-            ? window.getOrderSkuForProduct(perfume).toLowerCase()
-            : "";
+          const orderSkuStr = String(orderProduct.sku || "").toLowerCase();
           const nameStr = perfume.name
             ? String(perfume.name).toLowerCase()
             : "";
@@ -702,7 +800,7 @@
 
           return (
             matchesBrand &&
-            matchesSupplier &&
+            matchesWarehouse &&
             matchesStock &&
             (nameStr.includes(term) ||
               idStr.includes(term) ||
@@ -719,41 +817,36 @@
         filteredPerfumes.forEach((perfume) => {
           const card = document.createElement("div");
           card.className = "product-card";
+          const orderProduct = getMappedOrderProduct(perfume);
+          const stock = Number(orderProduct && orderProduct.stock) || 0;
+          const isAvailable = stock >= 19;
+          const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
+          const warehouseCode = getOrderWarehouseCode(orderProduct);
 
-          // 🟢 动态计算两个供应商状态
-          const isSupp2Oos = Number(perfume.stock) === 0;
-          const hasSupp1 = Boolean(perfume.sku2);
-          const isSupp1Oos = perfume.stock2 !== undefined ? Number(perfume.stock2) === 0 : false;
-
-          // 如果两家都没货，加入虚线外框
-          if (isSupp2Oos && (!hasSupp1 || isSupp1Oos)) {
+          if (!isAvailable || isComingSoon) {
             card.classList.add("out-of-stock");
           }
 
           const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
-          const orderSku = window.getOrderSkuForProduct
-            ? window.getOrderSkuForProduct(perfume)
-            : "";
+          const orderSku = String(orderProduct && orderProduct.sku || "").trim();
           const displaySku = orderSku || perfume.id;
-
-          // 计算按钮文字与样式
-          let btnText = "Add to Cart";
-          let btnOosClass = false;
-          if (isSupp2Oos) {
-            btnOosClass = true;
-            if (hasSupp1 && !isSupp1Oos) {
-              btnText = "Add (供二无/供一有)";
-            } else {
-              btnText = "Add (两家均无货)";
-            }
-          }
+          const btnText = isComingSoon
+            ? "Add (Coming Soon)"
+            : isAvailable
+              ? "Add to Cart"
+              : "Add (Below 19)";
+          const inventoryLabel = isComingSoon
+            ? "Coming Soon"
+            : isAvailable
+              ? `${stock} in stock`
+              : `Below 19 (${stock})`;
 
           card.innerHTML = `
             <div class="product-image-container">
               <img src="${correctImgSrc}" alt="${perfume.name}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
               ${
-                isSupp2Oos && (!hasSupp1 || isSupp1Oos)
-                  ? '<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">两家均缺货</div>'
+                !isAvailable || isComingSoon
+                  ? `<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">${inventoryLabel}</div>`
                   : ""
               }
               <div class="item-count-badge" id="count-${perfume.id}"></div>
@@ -762,27 +855,11 @@
               <p class="product-id">${displaySku}</p>
               ${orderSku ? `<p class="product-internal-id">Internal: ${perfume.id}</p>` : ""}
               <p class="product-name">${perfume.name}</p>
-              <p class="product-price">$${perfume.price}</p>
-              <span class="supplier-badge">${perfume.supplier || "Unknown"}</span>
-
-              <!-- 🟢 【新增】：双供应商库存直观显示标签 -->
-              <div style="margin-top: 8px; font-size: 0.75rem; border-top: 1px dashed #eee; padding-top: 6px; display: flex; flex-direction: column; gap: 2px;">
-                <div style="color: ${isSupp2Oos ? '#dc3545' : '#28a745'}; display: flex; justify-content: space-between;">
-                  <span>供应商二:</span>
-                  <strong>${isSupp2Oos ? '缺货' : '有货'}</strong>
-                </div>
-                ${
-                  hasSupp1
-                    ? `<div style="color: ${isSupp1Oos ? '#dc3545' : '#28a745'}; display: flex; justify-content: space-between;">
-                        <span>供应商一:</span>
-                        <strong>${isSupp1Oos ? '缺货' : '有货'}</strong>
-                       </div>`
-                    : '<div style="color:#aaa;">供应商一: 无SKU</div>'
-                }
-              </div>
+              <p class="product-price">$${Number(orderProduct.price || perfume.price).toFixed(2)}</p>
+              <span class="warehouse-badge">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
             </div>
             
-            <button class="add-to-cart-btn ${btnOosClass ? "oos-allowed" : ""}" data-id="${perfume.id}">
+            <button class="add-to-cart-btn ${!isAvailable || isComingSoon ? "oos-allowed" : ""}" data-id="${perfume.id}">
               ${btnText}
             </button>
           `;
@@ -844,16 +921,21 @@
 
         const { id, name, img, price, tier, sku, sku2, supplier, cost } = perfumeData;
         const existingItem = cartItems.find((cartItem) => cartItem.name === id);
-        const orderSku = window.getOrderSkuForProduct
-          ? window.getOrderSkuForProduct(perfumeData)
-          : "";
+        const orderProduct = getMappedOrderProduct(perfumeData);
+        const orderSku = String(orderProduct && orderProduct.sku || "").trim();
         const displaySku = orderSku || id;
+        const warehouse = getOrderWarehouseCode(orderProduct);
+        const catalogPrice = Number(orderProduct && orderProduct.price) || Number(price);
+        const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
 
         if (existingItem) {
           existingItem.quantity++;
           existingItem.orderSku = orderSku || existingItem.orderSku || "";
           existingItem.internalId = id;
           existingItem.caption = `${displaySku} - ${name}`;
+          existingItem.warehouse = warehouse;
+          existingItem.stock = catalogStock;
+          existingItem.price = catalogPrice;
         } else {
           cartItems.push({
             name: id,
@@ -862,7 +944,9 @@
             caption: `${displaySku} - ${name}`,
             img,
             quantity: 1,
-            price: Number(price),
+            price: catalogPrice,
+            warehouse,
+            stock: catalogStock,
             tier: tier,
             sku: sku || "",
             sku2: sku2 || "",
@@ -1080,12 +1164,22 @@
               : "";
             const orderSku = incomingOrderSku || mappedOrderSku;
             const displaySku = orderSku || product.id;
+            const orderProduct = (window.orderDB || []).find(
+              (catalogProduct) =>
+                String(catalogProduct.sku || "").trim().toUpperCase() === orderSku,
+            ) || getMappedOrderProduct(product);
+            const warehouse = getOrderWarehouseCode(orderProduct);
+            const catalogPrice = Number(orderProduct && orderProduct.price) || Number(product.price);
+            const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
 
             const existingItem = tempCart.find((item) => item.name === product.id);
             if (existingItem) {
               existingItem.quantity += qty;
               existingItem.orderSku = orderSku || existingItem.orderSku || "";
               existingItem.caption = `${displaySku} - ${product.name}`;
+              existingItem.warehouse = warehouse;
+              existingItem.stock = catalogStock;
+              existingItem.price = catalogPrice;
             } else {
               tempCart.push({
                 name: product.id,
@@ -1094,7 +1188,9 @@
                 caption: `${displaySku} - ${product.name}`,
                 img: product.img,
                 quantity: qty,
-                price: Number(product.price),
+                price: catalogPrice,
+                warehouse,
+                stock: catalogStock,
                 tier: product.tier,
                 sku: product.sku || "",
                 sku2: product.sku2 || "",
@@ -1203,16 +1299,31 @@
                               db.find(p => (p.sku && p.sku.includes(skuName)) || (p.sku2 && p.sku2.includes(skuName)) || (p.name && p.name.includes(skuName)));
 
               if (product) {
+                const orderProduct = getMappedOrderProduct(product);
+                const orderSku = String(orderProduct && orderProduct.sku || "").trim();
+                const displaySku = orderSku || product.id;
+                const warehouse = getOrderWarehouseCode(orderProduct);
+                const catalogPrice = Number(orderProduct && orderProduct.price) || Number(product.price);
+                const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
                 const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
                 if (existingItem) {
                   existingItem.quantity += qty;
+                  existingItem.orderSku = orderSku || existingItem.orderSku || "";
+                  existingItem.caption = `${displaySku} - ${product.name}`;
+                  existingItem.warehouse = warehouse;
+                  existingItem.stock = catalogStock;
+                  existingItem.price = catalogPrice;
                 } else {
                   cartItems.push({
                     name: product.id,
-                    caption: `${product.id} - ${product.name}`,
+                    internalId: product.id,
+                    orderSku,
+                    caption: `${displaySku} - ${product.name}`,
                     img: product.img,
                     quantity: qty,
-                    price: Number(product.price),
+                    price: catalogPrice,
+                    warehouse,
+                    stock: catalogStock,
                     tier: product.tier,
                     sku: product.sku || "",
                     sku2: product.sku2 || "",
@@ -1249,40 +1360,29 @@
           }
         }
 
-        brandButtons.forEach((button) => {
-          button.addEventListener("click", () => {
-            currentBrandFilter = button.dataset.brand;
-            brandButtons.forEach((btn) => btn.classList.remove("active"));
-            showAllButton.classList.remove("active");
-            button.classList.add("active");
-            renderPerfumes();
-          });
-        });
-
-        showAllButton.addEventListener("click", () => {
-          currentBrandFilter = "all";
-          brandButtons.forEach((btn) => btn.classList.remove("active"));
-          showAllButton.classList.add("active");
+        brandFilterContainer.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-brand]");
+          if (!button) return;
+          currentBrandFilter = button.dataset.brand;
           renderPerfumes();
         });
 
-        supplierButtons.forEach((button) => {
-          button.addEventListener("click", () => {
-            currentSupplierFilter = button.dataset.supplier;
-            supplierButtons.forEach((btn) => btn.classList.remove("active"));
-            button.classList.add("active");
-            renderPerfumes();
-          });
+        warehouseFilterContainer.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-warehouse]");
+          if (!button) return;
+          currentWarehouseFilter = button.dataset.warehouse;
+          currentBrandFilter = "all";
+          renderPerfumes();
         });
 
-        // 🟢 【新增】：库存状态筛选按钮点击事件
-        stockFilterButtons.forEach((button) => {
-          button.addEventListener("click", () => {
-            currentStockFilter = button.dataset.stockFilter;
-            stockFilterButtons.forEach((btn) => btn.classList.remove("active"));
-            button.classList.add("active");
-            renderPerfumes();
-          });
+        stockFilterContainer.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-stock-filter]");
+          if (!button) return;
+          currentStockFilter = button.dataset.stockFilter;
+          stockFilterContainer
+            .querySelectorAll("[data-stock-filter]")
+            .forEach((item) => item.classList.toggle("active", item === button));
+          renderPerfumes();
         });
 
         perfumeList.addEventListener("click", (e) => {
