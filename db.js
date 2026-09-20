@@ -175,3 +175,97 @@ function parseOrderCSV(csvText) {
       return product;
     });
 }
+
+function normalizeCatalogLookup(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getCatalogWarehouse(product) {
+  const source = [
+    product && product.warehouse,
+    product && product.gender,
+    product && product.notes,
+  ].join(" ");
+  const match = source.match(/\b(IL|TX)\s*(?:WAREHOUSE)?\b/i);
+  return match ? match[1].toUpperCase() : "";
+}
+
+function normalizeCatalogSize(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/ml$/, "");
+}
+
+function findOrderCatalogProduct(product) {
+  if (!product || !Array.isArray(window.orderDB)) return null;
+
+  const warehouse = getCatalogWarehouse(product);
+  const supplierCodes = new Set(
+    [product.sku, product.sku2]
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const sameWarehouse = (orderProduct) => {
+    const match = String(orderProduct.sku || "").trim().toUpperCase().match(/^([A-Z]+)-/);
+    return !warehouse || !match || match[1] === warehouse;
+  };
+
+  const productName = normalizeCatalogLookup(product.name);
+  if (!productName) return null;
+  const candidates = window.orderDB.filter(
+    (orderProduct) =>
+      sameWarehouse(orderProduct) &&
+      [orderProduct.name, orderProduct.brand].some((value) => String(value || "").trim()),
+  );
+  const nameMatches = candidates.filter((orderProduct) => {
+    return [orderProduct.name, orderProduct.brand]
+      .map(normalizeCatalogLookup)
+      .includes(productName);
+  });
+  if (nameMatches.length === 1) return nameMatches[0];
+  if (nameMatches.length > 1) {
+    const productSize = normalizeCatalogSize(product.ml);
+    const sizeMatches = nameMatches.filter(
+      (orderProduct) => normalizeCatalogSize(orderProduct.ml) === productSize,
+    );
+    if (sizeMatches.length === 1) return sizeMatches[0];
+  }
+
+  const alternateSkuMatches = candidates.filter((orderProduct) => {
+    const alternateSku = String(orderProduct.sku2 || "").trim().toLowerCase();
+    return alternateSku && supplierCodes.has(alternateSku);
+  });
+  if (alternateSkuMatches.length === 1) return alternateSkuMatches[0];
+
+  const supplierAndNameMatches = candidates.filter((orderProduct) => {
+    const orderSku = String(orderProduct.sku || "").trim().toLowerCase();
+    const shortOrderSku = orderSku.replace(/^(?:il|tx)-/, "");
+    if (!supplierCodes.has(shortOrderSku)) return false;
+    const orderNames = [orderProduct.name, orderProduct.brand]
+      .map(normalizeCatalogLookup)
+      .filter(Boolean);
+    return orderNames.some(
+      (orderName) =>
+        orderName === productName ||
+        orderName.includes(productName) ||
+        productName.includes(orderName),
+    );
+  });
+  return supplierAndNameMatches.length === 1 ? supplierAndNameMatches[0] : null;
+}
+
+function getOrderSkuForProduct(product) {
+  const orderProduct = findOrderCatalogProduct(product);
+  return orderProduct ? String(orderProduct.sku || "").trim() : "";
+}
+
+window.findOrderCatalogProduct = findOrderCatalogProduct;
+window.getOrderSkuForProduct = getOrderSkuForProduct;

@@ -307,10 +307,16 @@
         flex-direction: column;
       }
       .product-id {
-        font-size: 0.8rem;
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin: 0 0 2px;
+      }
+      .product-internal-id {
+        font-size: 0.68rem;
         font-weight: 500;
-        color: #888;
-        margin: 0 0 4px;
+        color: #aaa;
+        margin: 0 0 5px;
       }
       .product-name {
         font-size: 0.95rem;
@@ -577,7 +583,7 @@
       </div>
     </div>
 
-    <script src="db.js"></script>
+    <script src="db.js?v=2"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -685,6 +691,9 @@
 
           const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
           const sku2Str = perfume.sku2 ? String(perfume.sku2).toLowerCase() : "";
+          const orderSkuStr = window.getOrderSkuForProduct
+            ? window.getOrderSkuForProduct(perfume).toLowerCase()
+            : "";
           const nameStr = perfume.name
             ? String(perfume.name).toLowerCase()
             : "";
@@ -697,6 +706,7 @@
             matchesStock &&
             (nameStr.includes(term) ||
               idStr.includes(term) ||
+              orderSkuStr.includes(term) ||
               skuStr.includes(term) ||
               sku2Str.includes(term))
           );
@@ -721,6 +731,10 @@
           }
 
           const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
+          const orderSku = window.getOrderSkuForProduct
+            ? window.getOrderSkuForProduct(perfume)
+            : "";
+          const displaySku = orderSku || perfume.id;
 
           // 计算按钮文字与样式
           let btnText = "Add to Cart";
@@ -745,7 +759,8 @@
               <div class="item-count-badge" id="count-${perfume.id}"></div>
             </div>
             <div class="product-info">
-              <p class="product-id">${perfume.id}</p>
+              <p class="product-id">${displaySku}</p>
+              ${orderSku ? `<p class="product-internal-id">Internal: ${perfume.id}</p>` : ""}
               <p class="product-name">${perfume.name}</p>
               <p class="product-price">$${perfume.price}</p>
               <span class="supplier-badge">${perfume.supplier || "Unknown"}</span>
@@ -829,13 +844,22 @@
 
         const { id, name, img, price, tier, sku, sku2, supplier, cost } = perfumeData;
         const existingItem = cartItems.find((cartItem) => cartItem.name === id);
+        const orderSku = window.getOrderSkuForProduct
+          ? window.getOrderSkuForProduct(perfumeData)
+          : "";
+        const displaySku = orderSku || id;
 
         if (existingItem) {
           existingItem.quantity++;
+          existingItem.orderSku = orderSku || existingItem.orderSku || "";
+          existingItem.internalId = id;
+          existingItem.caption = `${displaySku} - ${name}`;
         } else {
           cartItems.push({
             name: id,
-            caption: `${id} - ${name}`,
+            internalId: id,
+            orderSku,
+            caption: `${displaySku} - ${name}`,
             img,
             quantity: 1,
             price: Number(price),
@@ -929,6 +953,14 @@
           return match ? match[1].toUpperCase() : "";
         }
 
+        function normalizeOrderSizeForMatch(value) {
+          return String(value || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "")
+            .replace(/ml$/, "");
+        }
+
         function findOrderProduct(db, orderItem) {
           const requestedWarehouse = String(orderItem.warehouse || "").toUpperCase();
           const orderCode = String(orderItem.id || "").trim().toLowerCase();
@@ -936,10 +968,8 @@
           const orderCatalogProduct = (window.orderDB || []).find(
             (product) => String(product.sku || "").trim().toLowerCase() === orderCode,
           );
-          const codeCandidates = new Set(
+          const supplierCodeCandidates = new Set(
             [
-              orderCode,
-              codeWithoutWarehouse,
               orderCatalogProduct && orderCatalogProduct.sku2,
             ]
               .map((value) => String(value || "").trim().toLowerCase())
@@ -947,15 +977,33 @@
           );
           const inRequestedWarehouse = (product) =>
             !requestedWarehouse || getOrderWarehouse(product) === requestedWarehouse;
-          const hasMatchingCode = (product) =>
-            [product.id, product.sku, product.sku2].some((value) =>
-              codeCandidates.has(String(value || "").trim().toLowerCase()),
-            );
+          const exactInternalMatches = db.filter(
+            (product) => String(product.id || "").trim().toLowerCase() === orderCode,
+          );
+          const exactInternalWarehouseMatch = exactInternalMatches.find(inRequestedWarehouse);
+          if (exactInternalWarehouseMatch) return exactInternalWarehouseMatch;
+          if (exactInternalMatches.length === 1) return exactInternalMatches[0];
 
-          const directMatches = db.filter(hasMatchingCode);
-          const directWarehouseMatch = directMatches.find(inRequestedWarehouse);
-          if (directWarehouseMatch) return directWarehouseMatch;
-          if (directMatches.length === 1) return directMatches[0];
+          const supplierMatches = db.filter((product) =>
+            [product.sku, product.sku2].some((value) =>
+              supplierCodeCandidates.has(String(value || "").trim().toLowerCase()),
+            ),
+          );
+          const supplierWarehouseMatch = supplierMatches.find(inRequestedWarehouse);
+          if (supplierWarehouseMatch) return supplierWarehouseMatch;
+          if (supplierMatches.length === 1) return supplierMatches[0];
+
+          const findByIncomingSupplierCode = () => {
+            const matches = db.filter((product) =>
+              [product.sku, product.sku2].some(
+                (value) =>
+                  String(value || "").trim().toLowerCase() === codeWithoutWarehouse,
+              ),
+            );
+            const warehouseMatch = matches.find(inRequestedWarehouse);
+            if (warehouseMatch) return warehouseMatch;
+            return matches.length === 1 ? matches[0] : null;
+          };
 
           const requestedNames = [
             orderItem.name,
@@ -964,13 +1012,22 @@
           ]
             .map(normalizeOrderLookup)
             .filter(Boolean);
-          if (requestedNames.length === 0) return null;
+          if (requestedNames.length === 0) return findByIncomingSupplierCode();
 
           const exactNameMatches = db.filter(
             (product) => requestedNames.includes(normalizeOrderLookup(product.name)),
           );
-          const exactWarehouseMatch = exactNameMatches.find(inRequestedWarehouse);
-          if (exactWarehouseMatch) return exactWarehouseMatch;
+          const exactWarehouseMatches = exactNameMatches.filter(inRequestedWarehouse);
+          if (exactWarehouseMatches.length === 1) return exactWarehouseMatches[0];
+          const requestedSize = normalizeOrderSizeForMatch(
+            orderCatalogProduct && orderCatalogProduct.ml,
+          );
+          if (requestedSize) {
+            const exactSizeMatches = exactWarehouseMatches.filter(
+              (product) => normalizeOrderSizeForMatch(product.ml) === requestedSize,
+            );
+            if (exactSizeMatches.length === 1) return exactSizeMatches[0];
+          }
           if (exactNameMatches.length === 1) return exactNameMatches[0];
 
           const searchableNames = requestedNames.filter((name) => name.length >= 5);
@@ -985,7 +1042,8 @@
               )
             );
           });
-          return partialNameMatches.length === 1 ? partialNameMatches[0] : null;
+          if (partialNameMatches.length === 1) return partialNameMatches[0];
+          return orderCatalogProduct ? null : findByIncomingSupplierCode();
         }
 
         function handleOrderPaste(text) {
@@ -1014,13 +1072,26 @@
               return;
             }
 
+            const mappedOrderSku = window.getOrderSkuForProduct
+              ? window.getOrderSkuForProduct(product)
+              : "";
+            const incomingOrderSku = /^(?:IL|TX)-/i.test(orderItem.id)
+              ? String(orderItem.id).trim().toUpperCase()
+              : "";
+            const orderSku = incomingOrderSku || mappedOrderSku;
+            const displaySku = orderSku || product.id;
+
             const existingItem = tempCart.find((item) => item.name === product.id);
             if (existingItem) {
               existingItem.quantity += qty;
+              existingItem.orderSku = orderSku || existingItem.orderSku || "";
+              existingItem.caption = `${displaySku} - ${product.name}`;
             } else {
               tempCart.push({
                 name: product.id,
-                caption: `${product.id} - ${product.name}`,
+                internalId: product.id,
+                orderSku,
+                caption: `${displaySku} - ${product.name}`,
                 img: product.img,
                 quantity: qty,
                 price: Number(product.price),
