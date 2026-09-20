@@ -41,10 +41,10 @@
       }
       .filter-group {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
         gap: 8px;
-        width: 100%;
+        width: auto;
       }
       .search-container {
         position: relative;
@@ -160,17 +160,18 @@
       }
       .navbar {
         display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        padding: 10px 0;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 0 9px;
         border-top: 1px solid #eee;
-        gap: 8px;
-        max-width: 800px;
+        gap: 14px;
+        max-width: 1200px;
         margin: 0 auto;
+        position: relative;
       }
       .nav-btn {
-        padding: 8px 14px;
-        font-size: 0.9rem;
+        padding: 7px 12px;
+        font-size: 0.84rem;
         font-weight: 500;
         border: 1px solid #ddd;
         background-color: #fdfdfd;
@@ -204,11 +205,114 @@
         align-self: flex-start;
       }
       .filter-divider {
-        width: 100%;
-        flex-basis: 100%;
+        width: 1px;
+        height: 28px;
+        flex: 0 0 1px;
         border: none;
-        border-top: 1px solid #eee;
-        margin: 5px 0;
+        border-left: 1px solid #e5e5e5;
+        margin: 0;
+      }
+      .brand-filter-section {
+        position: relative;
+        flex: 0 0 250px;
+      }
+      .brand-menu-toggle {
+        width: 100%;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        border: 1px solid #d9d9dc;
+        border-radius: 12px;
+        background: #fff;
+        color: #202124;
+        cursor: pointer;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease;
+      }
+      .brand-menu-toggle:hover,
+      .brand-menu-toggle[aria-expanded="true"] {
+        border-color: #aeb0b5;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+      }
+      .brand-menu-kicker {
+        color: #777b82;
+        font-size: 0.67rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #current-brand-label {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+        font-size: 0.88rem;
+        font-weight: 700;
+      }
+      .brand-menu-caret {
+        color: #696c72;
+        font-size: 0.72rem;
+        transition: transform 0.18s ease;
+      }
+      .brand-menu-toggle[aria-expanded="true"] .brand-menu-caret {
+        transform: rotate(180deg);
+      }
+      .brand-menu {
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 0;
+        width: min(880px, calc(100vw - 32px));
+        max-height: min(520px, calc(100vh - 150px));
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 16px;
+        border: 1px solid #dedfe3;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 18px 48px rgba(26, 28, 33, 0.16);
+        z-index: 20;
+      }
+      .brand-menu[hidden] {
+        display: none;
+      }
+      .brand-menu-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 0 2px 12px;
+      }
+      .brand-menu-title {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #202124;
+      }
+      #brand-count {
+        color: #83868c;
+        font-size: 0.75rem;
+      }
+      #brand-filter-container {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+      }
+      #brand-filter-container .nav-btn {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      .toolbar-filters {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 14px;
+        min-width: 0;
       }
       .warehouse-btn {
         background-color: #f0f6ff;
@@ -248,6 +352,23 @@
         background-color: #dc3545;
         color: white;
         border-color: #dc3545;
+      }
+
+      @media (max-width: 900px) {
+        .navbar {
+          gap: 8px;
+          overflow-x: auto;
+          justify-content: flex-start;
+        }
+        .brand-filter-section {
+          flex-basis: 210px;
+        }
+        .toolbar-filters {
+          gap: 8px;
+        }
+        #brand-filter-container {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
       }
 
       .container {
@@ -492,28 +613,48 @@
       </div>
 
       <div class="navbar">
-        <div class="filter-group" id="brand-filter-container">
-          <button class="nav-btn all-btn active" data-brand="all">All Brands</button>
+        <div class="brand-filter-section" id="brand-filter-section">
+          <button
+            type="button"
+            class="brand-menu-toggle"
+            id="brand-menu-toggle"
+            aria-expanded="false"
+            aria-controls="brand-menu"
+          >
+            <span class="brand-menu-kicker">Brand</span>
+            <span id="current-brand-label">All Brands</span>
+            <span class="brand-menu-caret" aria-hidden="true">▼</span>
+          </button>
+          <div class="brand-menu" id="brand-menu" hidden>
+            <div class="brand-menu-header">
+              <span class="brand-menu-title">Choose a brand</span>
+              <span id="brand-count"></span>
+            </div>
+            <div id="brand-filter-container">
+              <button class="nav-btn all-btn active" data-brand="all">All Brands</button>
+            </div>
+          </div>
         </div>
 
-        <hr class="filter-divider" />
-        <div class="filter-group" id="warehouse-filter-container">
-          <button class="nav-btn warehouse-btn active" data-warehouse="all">
-            All Warehouses
-          </button>
-        </div>
+        <div class="toolbar-filters">
+          <div class="filter-group" id="warehouse-filter-container">
+            <button class="nav-btn warehouse-btn active" data-warehouse="all">
+              All Warehouses
+            </button>
+          </div>
 
-        <hr class="filter-divider" />
-        <div class="filter-group" id="stock-filter-container">
-          <button class="nav-btn stock-filter-btn active" data-stock-filter="all">
-            All Inventory
-          </button>
-          <button class="nav-btn stock-filter-btn" data-stock-filter="available">
-            Available (19+)
-          </button>
-          <button class="nav-btn stock-filter-btn" data-stock-filter="below-threshold">
-            Below 19
-          </button>
+          <hr class="filter-divider" />
+          <div class="filter-group" id="stock-filter-container">
+            <button class="nav-btn stock-filter-btn active" data-stock-filter="all">
+              All Inventory
+            </button>
+            <button class="nav-btn stock-filter-btn" data-stock-filter="available">
+              Available (19+)
+            </button>
+            <button class="nav-btn stock-filter-btn" data-stock-filter="below-threshold">
+              Below 19
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -629,6 +770,11 @@
       const skuModal = document.getElementById("sku-modal");
       const skuModalTitle = document.getElementById("sku-modal-title");
       const brandFilterContainer = document.getElementById("brand-filter-container");
+      const brandFilterSection = document.getElementById("brand-filter-section");
+      const brandMenuToggle = document.getElementById("brand-menu-toggle");
+      const brandMenu = document.getElementById("brand-menu");
+      const currentBrandLabel = document.getElementById("current-brand-label");
+      const brandCount = document.getElementById("brand-count");
       const warehouseFilterContainer = document.getElementById("warehouse-filter-container");
       const stockFilterContainer = document.getElementById("stock-filter-container");
 
@@ -638,6 +784,11 @@
           document.body.style.paddingTop =
             headerContainer.offsetHeight + 15 + "px";
         }
+      }
+
+      function setBrandMenuOpen(isOpen) {
+        brandMenu.hidden = !isOpen;
+        brandMenuToggle.setAttribute("aria-expanded", String(isOpen));
       }
 
       function getOrderWarehouseCode(orderProduct) {
@@ -701,12 +852,21 @@
         ) {
           currentBrandFilter = "all";
         }
+        const selectedBrand = brands.find(
+          (brand) => brand.key === currentBrandFilter,
+        );
+        currentBrandLabel.textContent = selectedBrand
+          ? selectedBrand.label
+          : "All Brands";
+        currentBrandLabel.title = selectedBrand ? selectedBrand.label : "All Brands";
+        brandCount.textContent = `${brands.length} brands`;
         brandFilterContainer.innerHTML = "";
         [{ key: "all", label: "All Brands" }, ...brands].forEach((brand) => {
           const button = document.createElement("button");
           button.className = `nav-btn${brand.key === "all" ? " all-btn" : ""}${currentBrandFilter === brand.key ? " active" : ""}`;
           button.dataset.brand = brand.key;
           button.textContent = brand.label;
+          button.title = brand.label;
           brandFilterContainer.appendChild(button);
         });
       }
@@ -1360,10 +1520,28 @@
           }
         }
 
+        brandMenuToggle.addEventListener("click", () => {
+          setBrandMenuOpen(brandMenu.hidden);
+        });
+
+        document.addEventListener("click", (event) => {
+          if (!brandFilterSection.contains(event.target)) {
+            setBrandMenuOpen(false);
+          }
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !brandMenu.hidden) {
+            setBrandMenuOpen(false);
+            brandMenuToggle.focus();
+          }
+        });
+
         brandFilterContainer.addEventListener("click", (event) => {
           const button = event.target.closest("[data-brand]");
           if (!button) return;
           currentBrandFilter = button.dataset.brand;
+          setBrandMenuOpen(false);
           renderPerfumes();
         });
 
@@ -1372,6 +1550,7 @@
           if (!button) return;
           currentWarehouseFilter = button.dataset.warehouse;
           currentBrandFilter = "all";
+          setBrandMenuOpen(false);
           renderPerfumes();
         });
 
