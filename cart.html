@@ -26,16 +26,14 @@
       .cart-container { max-width: 1200px; margin: 20px auto 10px; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
       
       .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); transition: all 0.2s; }
-      .cart-item.out-of-stock { border: 1px dashed var(--danger-color); opacity: 0.9; }
-
       .product-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background-color: #f4f4f4; }
       .product-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-      .stock-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--danger-color); font-size: 1.1rem; backdrop-filter: blur(2px); z-index: 5; }
 
       .item-info { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; width: 100%; }
       .item-info .item-name { font-weight: 600; margin: 0 0 4px 0; font-size: 0.95rem; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5em; }
       .item-internal-id { margin: -1px 0 5px; color: var(--text-secondary); font-size: 0.68rem; font-weight: 500; }
       .item-warehouse { font-size: 0.7rem; color: #0068d9; background-color: #eef5ff; padding: 3px 7px; border-radius: 6px; width: fit-content; margin-bottom: 10px; font-weight: 700; }
+      .item-warehouse.low-stock { color: #a52a31; background-color: #fff0f1; }
       .item-controls { display: flex; justify-content: center; align-items: center; margin-top: auto; padding-top: 8px; border-top: 1px solid #f5f5f5; }
       .quantity-controls { display: flex; align-items: center; background-color: #f2f2f7; border-radius: 16px; padding: 2px; width: 100%; justify-content: space-between; }
       .quantity-controls button { background-color: #fff; border: 0.5px solid rgba(0, 0, 0, 0.04); width: 28px; height: 28px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -100,6 +98,85 @@
 
         function saveCart() {
           localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
+        }
+
+        function resolveCartCatalogData(item) {
+          const lookupKeys = [item.name, item.internalId]
+            .map((value) => String(value || "").trim().toLowerCase())
+            .filter(Boolean);
+          const matchedProduct = (window.perfumeDB || []).find((product) =>
+            lookupKeys.includes(String(product.id || "").trim().toLowerCase()),
+          ) || null;
+          const mappedOrderProduct = matchedProduct && window.findOrderCatalogProduct
+            ? window.findOrderCatalogProduct(matchedProduct)
+            : null;
+          const savedOrderSku = String(item.orderSku || "").trim().toUpperCase();
+          const savedOrderProduct = (window.orderDB || []).find(
+            (product) =>
+              String(product.sku || "").trim().toUpperCase() === savedOrderSku,
+          ) || null;
+          const orderProduct = mappedOrderProduct || savedOrderProduct;
+          const orderSku = String(
+            (orderProduct && orderProduct.sku) || savedOrderSku,
+          ).trim().toUpperCase();
+          const warehouseMatch = orderSku.match(/^([A-Z]+)-/);
+          const savedWarehouseCode = String(item.warehouse || "")
+            .trim()
+            .replace(/\s+WAREHOUSE$/i, "")
+            .toUpperCase();
+          const warehouseCode = warehouseMatch
+            ? warehouseMatch[1]
+            : savedWarehouseCode || "OTHER";
+
+          return { matchedProduct, orderProduct, orderSku, warehouseCode };
+        }
+
+        function restoreWarehousePrefix(value, orderSku) {
+          const rawValue = String(value || "").trim();
+          const normalizedOrderSku = String(orderSku || "").trim().toUpperCase();
+          const bareOrderSku = normalizedOrderSku.replace(/^[A-Z]+-/, "");
+          return rawValue.toUpperCase() === bareOrderSku && normalizedOrderSku
+            ? normalizedOrderSku
+            : rawValue;
+        }
+
+        function buildWarehouseOrderPreview() {
+          const warehouseGroups = new Map();
+
+          cartItems.forEach((item) => {
+            const { matchedProduct, orderSku, warehouseCode } =
+              resolveCartCatalogData(item);
+            let sku1 = String(item.sku || matchedProduct && matchedProduct.sku || "").trim();
+            let sku2 = String(item.sku2 || matchedProduct && matchedProduct.sku2 || "").trim();
+            sku1 = restoreWarehousePrefix(sku1, orderSku);
+            sku2 = restoreWarehousePrefix(sku2, orderSku);
+
+            const quantity = Number(item.quantity) || 0;
+            let orderLine = `${orderSku || item.name}*${quantity}`;
+            if (sku1 && sku2) {
+              orderLine = `${sku1}*${quantity}/${sku2}*${quantity}`;
+            } else if (sku1 || sku2) {
+              orderLine = `${sku1 || sku2}*${quantity}`;
+            }
+
+            if (!warehouseGroups.has(warehouseCode)) {
+              warehouseGroups.set(warehouseCode, []);
+            }
+            warehouseGroups.get(warehouseCode).push(orderLine);
+          });
+
+          const warehousePriority = { IL: 0, TX: 1 };
+          return Array.from(warehouseGroups.entries())
+            .sort(([warehouseA], [warehouseB]) => {
+              const rankA = warehousePriority[warehouseA] ?? 99;
+              const rankB = warehousePriority[warehouseB] ?? 99;
+              return rankA - rankB || warehouseA.localeCompare(warehouseB);
+            })
+            .map(
+              ([warehouse, lines]) =>
+                `${warehouse} Warehouse\n${lines.join("\n")}`,
+            )
+            .join("\n\n");
         }
 
         function updatePageState() {
@@ -168,37 +245,9 @@
             `;
           }
 
-         // 保留两套转换 SKU；界面只按仓库展示，不再区分供应商。
-if (previewTextarea) {
-  previewTextarea.value = cartItems.map(i => {
-    let sku1 = String(i.sku || "").trim();
-    let sku2 = String(i.sku2 || "").trim();
-
-    // 防错兜底：若购物车历史缓存未含 sku2，实时从全局数据库中匹配补全
-    if (!sku1 && !sku2 && window.perfumeDB && window.perfumeDB.length > 0) {
-      const searchKey = String(i.name || "").trim().toLowerCase();
-      const matched = window.perfumeDB.find(p => 
-        String(p.id || "").trim().toLowerCase() === searchKey ||
-        String(p.sku || "").trim().toLowerCase() === searchKey
-      );
-      if (matched) {
-        sku1 = String(matched.sku || "").trim();
-        sku2 = String(matched.sku2 || "").trim();
-      }
-    }
-
-    const qty = i.quantity;
-    if (sku1 && sku2) {
-      return `${sku1}*${qty}/${sku2}*${qty}`; // 两套转换 SKU 都存在
-    } else if (sku1) {
-      return `${sku1}*${qty}`;
-    } else if (sku2) {
-      return `${sku2}*${qty}`;
-    } else {
-      return `${i.name}*${qty}`;              // 保底格式
-    }
-  }).join("\n");
-}
+          if (previewTextarea) {
+            previewTextarea.value = buildWarehouseOrderPreview();
+          }
         }
 
      window.renderCart = function () {
@@ -219,38 +268,18 @@ if (previewTextarea) {
             itemEl.className = "cart-item";
             itemEl.dataset.name = item.name;
 
-            let matchedProduct = null;
-            if (window.perfumeDB && window.perfumeDB.length > 0) {
-              matchedProduct = window.perfumeDB.find(p => String(p.id).toLowerCase() === String(item.name).toLowerCase());
-            }
-            const orderProduct = matchedProduct && window.findOrderCatalogProduct
-              ? window.findOrderCatalogProduct(matchedProduct)
-              : null;
+            const { matchedProduct, orderProduct, orderSku, warehouseCode } =
+              resolveCartCatalogData(item);
             const stock = orderProduct
               ? Number(orderProduct.stock) || 0
               : Number(item.stock) || 0;
             const isAvailable = stock >= 19;
             const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
-            const warehouseMatch = String(orderProduct && orderProduct.sku || item.orderSku || "")
-              .trim()
-              .toUpperCase()
-              .match(/^([A-Z]+)-/);
-            const savedWarehouseCode = String(item.warehouse || "")
-              .trim()
-              .replace(/\s+WAREHOUSE$/i, "")
-              .toUpperCase();
-            const warehouseCode = warehouseMatch ? warehouseMatch[1] : savedWarehouseCode;
             const inventoryLabel = isComingSoon
               ? "Coming Soon"
               : isAvailable
                 ? `${stock} in stock`
                 : `Below 19 (${stock})`;
-
-            if (!isAvailable || isComingSoon) {
-              itemEl.classList.add("out-of-stock");
-            }
-
-            const orderSku = item.orderSku || String(orderProduct && orderProduct.sku || "").trim();
             const internalId = matchedProduct
               ? matchedProduct.id
               : (item.internalId || item.name);
@@ -264,13 +293,12 @@ if (previewTextarea) {
               
               <div class="product-image-container">
                 <img src="${correctImgSrc}" alt="${displayName}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
-                ${!isAvailable || isComingSoon ? `<div class="stock-overlay" style="color:var(--danger-color); font-size:0.85rem; font-weight:bold;">${inventoryLabel}</div>` : ''}
               </div>
 
               <div class="item-info">
                 <p class="item-name">${displayName}</p>
                 ${orderSku && internalId !== orderSku ? `<p class="item-internal-id">Internal: ${internalId}</p>` : ""}
-                <span class="item-warehouse">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
+                <span class="item-warehouse${!isAvailable || isComingSoon ? " low-stock" : ""}">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
               </div>
 
               <div class="item-controls">

@@ -99,9 +99,9 @@
 
       /* 购物车按钮 */
       #cart-button {
-        background-color: var(--primary-color);
-        color: white;
-        border: none;
+        background-color: #ffffff;
+        color: #1d1d1f;
+        border: 1px solid #d9dde3;
         padding: 0 12px;
         height: 44px;
         min-width: 44px;
@@ -110,9 +110,12 @@
         margin-left: 10px;
         position: relative;
         text-decoration: none;
+        box-shadow: 0 3px 10px rgba(25, 41, 61, 0.08);
       }
       #cart-button:hover {
-        background-color: #0056b3;
+        background-color: #eef5ff;
+        border-color: #9cc5f4;
+        box-shadow: 0 5px 14px rgba(0, 104, 217, 0.14);
       }
 
       /* 清空购物车按钮 */
@@ -203,6 +206,10 @@
         display: inline-block;
         margin-top: 6px;
         align-self: flex-start;
+      }
+      .warehouse-badge.low-stock {
+        background-color: #fff0f1;
+        color: #a52a31;
       }
       .filter-divider {
         width: 1px;
@@ -392,10 +399,6 @@
           transform 0.2s ease,
           box-shadow 0.2s ease;
       }
-      .product-card.out-of-stock {
-        opacity: 0.9;
-        border: 1px dashed #ccc;
-      }
       .product-card:hover {
         transform: translateY(-3px);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
@@ -412,21 +415,6 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-      }
-      .stock-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(255, 255, 255, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        color: #333;
-        font-size: 1rem;
-        backdrop-filter: blur(2px);
       }
       .product-info {
         padding: 12px;
@@ -983,10 +971,6 @@
           const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
           const warehouseCode = getOrderWarehouseCode(orderProduct);
 
-          if (!isAvailable || isComingSoon) {
-            card.classList.add("out-of-stock");
-          }
-
           const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
           const orderSku = String(orderProduct && orderProduct.sku || "").trim();
           const displaySku = orderSku || perfume.id;
@@ -1004,11 +988,6 @@
           card.innerHTML = `
             <div class="product-image-container">
               <img src="${correctImgSrc}" alt="${perfume.name}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
-              ${
-                !isAvailable || isComingSoon
-                  ? `<div class="stock-overlay" style="color:red; background:rgba(255,255,255,0.7);">${inventoryLabel}</div>`
-                  : ""
-              }
               <div class="item-count-badge" id="count-${perfume.id}"></div>
             </div>
             <div class="product-info">
@@ -1016,7 +995,7 @@
               ${orderSku ? `<p class="product-internal-id">Internal: ${perfume.id}</p>` : ""}
               <p class="product-name">${perfume.name}</p>
               <p class="product-price">$${Number(orderProduct.price || perfume.price).toFixed(2)}</p>
-              <span class="warehouse-badge">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
+              <span class="warehouse-badge${!isAvailable || isComingSoon ? " low-stock" : ""}">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
             </div>
             
             <button class="add-to-cart-btn ${!isAvailable || isComingSoon ? "oos-allowed" : ""}" data-id="${perfume.id}">
