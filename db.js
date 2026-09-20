@@ -6,11 +6,15 @@
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_1tyfxYn_N6GiapL-T1u325G_A5L7YlrgAZKd92Nnl_7l12c5hDeur-9kwuE4RfBY4a9lZzNnqzc9/pub?gid=0&single=true&output=csv";
 
 // 🔴 2. 已经替换为你只存 SKU 和价格的新表格链接
-const NEW_COST_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRwfhvTIKxcNt7BMH0efPwy1ME4y12feYbdWj510SdJg8k0NzwKrzPs4BYCbzGwKvMRUY62-1blhO5Y/pub?gid=0&single=true&output=csv"; 
+const NEW_COST_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRwfhvTIKxcNt7BMH0efPwy1ME4y12feYbdWj510SdJg8k0NzwKrzPs4BYCbzGwKvMRUY62-1blhO5Y/pub?gid=0&single=true&output=csv";
+
+// 当前询盘网站使用的商品表，用于把 IL-/TX- SKU 转换回供应商 SKU。
+const ORDER_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFWYImNbJ0ao5z0VDk_VZwhOP1pnY2UZdFuwxtYOvKaNfEX4sInJh7uk-MlRSH9kffdZ5TjzhudLao/pub?gid=1967485424&single=true&output=csv";
 
 const CACHE_DURATION = 5 * 60 * 1000;
 window.perfumeDB = [];
-window.costDB = []; 
+window.costDB = [];
+window.orderDB = [];
 
 // 🧠【最高优先级对账防漏装甲】：直接注入 A19 和 A31 的真实拿货价
 const INJECTED_COSTS = {
@@ -27,28 +31,36 @@ async function initAllData() {
   const cachedTime = localStorage.getItem("perfumeDB_Time_v2");
   const cachedData = localStorage.getItem("perfumeDB_Data_v2");
   const cachedCostData = localStorage.getItem("costDB_Data");
+  const cachedOrderData = localStorage.getItem("orderDB_Data_v1");
 
-  if (cachedData && cachedCostData && cachedTime && (now - cachedTime < CACHE_DURATION)) {
+  if (cachedData && cachedCostData && cachedOrderData && cachedTime && (now - cachedTime < CACHE_DURATION)) {
     window.perfumeDB = JSON.parse(cachedData);
     window.costDB = JSON.parse(cachedCostData);
+    window.orderDB = JSON.parse(cachedOrderData);
     injectCostsForce(); 
     runPageLogic();
     return;
   }
 
   try {
-    const [resMain, resCost] = await Promise.all([
+    const [resMain, resCost, resOrder] = await Promise.all([
       fetch(SHEET_URL).then(r => r.text()),
-      fetch(NEW_COST_SHEET_URL).then(r => r.text())
+      fetch(NEW_COST_SHEET_URL).then(r => r.text()),
+      fetch(ORDER_SHEET_URL).then(r => r.text()).catch((error) => {
+        console.warn("询盘商品表加载失败，将使用名称和仓库匹配", error);
+        return "";
+      })
     ]);
 
     window.perfumeDB = parseMainCSV(resMain);
     window.costDB = parseCostCSV(resCost);
+    window.orderDB = resOrder ? parseOrderCSV(resOrder) : [];
 
     injectCostsForce(); 
 
     localStorage.setItem("perfumeDB_Data_v2", JSON.stringify(window.perfumeDB));
     localStorage.setItem("costDB_Data", JSON.stringify(window.costDB));
+    localStorage.setItem("orderDB_Data_v1", JSON.stringify(window.orderDB));
     localStorage.setItem("perfumeDB_Time_v2", now);
     
     runPageLogic();
@@ -56,6 +68,7 @@ async function initAllData() {
     console.error("加载数据失败，尝试降级读取缓存", error);
     if (cachedData) window.perfumeDB = JSON.parse(cachedData);
     if (cachedCostData) window.costDB = JSON.parse(cachedCostData);
+    if (cachedOrderData) window.orderDB = JSON.parse(cachedOrderData);
     injectCostsForce();
     runPageLogic();
   }
@@ -114,4 +127,51 @@ function parseCostCSV(csvText) {
     if (!rawSku) return null;
     return { sku: rawSku, cost: isNaN(rawCost) ? 0 : rawCost };
   }).filter(item => item !== null);
+}
+
+function parseOrderCSV(csvText) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  const text = String(csvText || "").replace(/^\uFEFF/, "");
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') {
+        value += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === "," && !quoted) {
+      row.push(value.trim());
+      value = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      row.push(value.trim());
+      rows.push(row);
+      row = [];
+      value = "";
+      if (char === "\r" && text[index + 1] === "\n") index += 1;
+    } else {
+      value += char;
+    }
+  }
+  if (value || row.length) {
+    row.push(value.trim());
+    rows.push(row);
+  }
+  if (rows.length < 2) return [];
+
+  const headers = rows.shift().map((header) => header.trim().toLowerCase());
+  return rows
+    .filter((values) => values.some(Boolean))
+    .map((values) => {
+      const product = {};
+      headers.forEach((header, index) => {
+        product[header] = values[index] || "";
+      });
+      return product;
+    });
 }

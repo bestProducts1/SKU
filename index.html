@@ -909,6 +909,85 @@
           renderPerfumes();
         });
 
+        function normalizeOrderLookup(value) {
+          return String(value || "")
+            .normalize("NFKC")
+            .toLowerCase()
+            .replace(/[’']/g, "")
+            .replace(/&/g, " and ")
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+        }
+
+        function getOrderWarehouse(product) {
+          const source = [
+            product.warehouse,
+            product.gender,
+            product.notes,
+          ].join(" ");
+          const match = source.match(/\b(IL|TX)\s*(?:WAREHOUSE)?\b/i);
+          return match ? match[1].toUpperCase() : "";
+        }
+
+        function findOrderProduct(db, orderItem) {
+          const requestedWarehouse = String(orderItem.warehouse || "").toUpperCase();
+          const orderCode = String(orderItem.id || "").trim().toLowerCase();
+          const codeWithoutWarehouse = orderCode.replace(/^(?:il|tx)-/, "");
+          const orderCatalogProduct = (window.orderDB || []).find(
+            (product) => String(product.sku || "").trim().toLowerCase() === orderCode,
+          );
+          const codeCandidates = new Set(
+            [
+              orderCode,
+              codeWithoutWarehouse,
+              orderCatalogProduct && orderCatalogProduct.sku2,
+            ]
+              .map((value) => String(value || "").trim().toLowerCase())
+              .filter(Boolean),
+          );
+          const inRequestedWarehouse = (product) =>
+            !requestedWarehouse || getOrderWarehouse(product) === requestedWarehouse;
+          const hasMatchingCode = (product) =>
+            [product.id, product.sku, product.sku2].some((value) =>
+              codeCandidates.has(String(value || "").trim().toLowerCase()),
+            );
+
+          const directMatches = db.filter(hasMatchingCode);
+          const directWarehouseMatch = directMatches.find(inRequestedWarehouse);
+          if (directWarehouseMatch) return directWarehouseMatch;
+          if (directMatches.length === 1) return directMatches[0];
+
+          const requestedNames = [
+            orderItem.name,
+            orderCatalogProduct && orderCatalogProduct.name,
+            orderCatalogProduct && orderCatalogProduct.brand,
+          ]
+            .map(normalizeOrderLookup)
+            .filter(Boolean);
+          if (requestedNames.length === 0) return null;
+
+          const exactNameMatches = db.filter(
+            (product) => requestedNames.includes(normalizeOrderLookup(product.name)),
+          );
+          const exactWarehouseMatch = exactNameMatches.find(inRequestedWarehouse);
+          if (exactWarehouseMatch) return exactWarehouseMatch;
+          if (exactNameMatches.length === 1) return exactNameMatches[0];
+
+          const searchableNames = requestedNames.filter((name) => name.length >= 5);
+          if (searchableNames.length === 0) return null;
+          const partialNameMatches = db.filter((product) => {
+            const productName = normalizeOrderLookup(product.name);
+            return (
+              inRequestedWarehouse(product) &&
+              searchableNames.some(
+                (requestedName) =>
+                  productName.includes(requestedName) || requestedName.includes(productName),
+              )
+            );
+          });
+          return partialNameMatches.length === 1 ? partialNameMatches[0] : null;
+        }
+
         function handleOrderPaste(text) {
           const db = window.perfumeDB || [];
           if (db.length === 0) {
@@ -920,37 +999,83 @@
           let importedCount = 0;
           let notFoundList = [];
           let tempCart = [];
+          let currentWarehouse = "";
 
-          const lineRegex =
-            /^\s*[-*•]?\s*([A-Za-z0-9]+).*[xX×]\s*[*]?\(?(\d+)/i;
+          const addMatchedProduct = (orderItem) => {
+            const qty = Number(orderItem.quantity) || 0;
+            if (qty <= 0) return;
 
-          lines.forEach((line) => {
-            const match = line.match(lineRegex);
-            if (match) {
-              const id = match[1].trim();
-              const qty = parseInt(match[2]);
-
-              const product = db.find((p) => p.id === id);
-
-              if (product) {
-                tempCart.push({
-                  name: product.id,
-                  caption: `${product.id} - ${product.name}`,
-                  img: product.img,
-                  quantity: qty,
-                  price: Number(product.price),
-                  tier: product.tier,
-                  sku: product.sku || "",
-                  sku2: product.sku2 || "",
-                  supplier: product.supplier,
-                  cost: product.cost ? Number(product.cost) : 0
-                });
-                importedCount += qty;
-              } else {
-                notFoundList.push(id);
-              }
+            const product = findOrderProduct(db, orderItem);
+            if (!product) {
+              const label = orderItem.name
+                ? `${orderItem.id} - ${orderItem.name}`
+                : orderItem.id;
+              notFoundList.push(label);
+              return;
             }
-          });
+
+            const existingItem = tempCart.find((item) => item.name === product.id);
+            if (existingItem) {
+              existingItem.quantity += qty;
+            } else {
+              tempCart.push({
+                name: product.id,
+                caption: `${product.id} - ${product.name}`,
+                img: product.img,
+                quantity: qty,
+                price: Number(product.price),
+                tier: product.tier,
+                sku: product.sku || "",
+                sku2: product.sku2 || "",
+                supplier: product.supplier,
+                cost: product.cost ? Number(product.cost) : 0,
+              });
+            }
+            importedCount += qty;
+          };
+
+          for (let index = 0; index < lines.length; index += 1) {
+            const rawLine = lines[index];
+            const cleanLine = rawLine.replace(/\*/g, "").trim();
+            const warehouseMatch = cleanLine.match(/^([A-Za-z]{2,10})\s+Warehouse$/i);
+            if (warehouseMatch) {
+              currentWarehouse = warehouseMatch[1].toUpperCase();
+              continue;
+            }
+
+            const legacyMatch = rawLine.match(
+              /^\s*[-*•]?\s*([A-Za-z0-9][A-Za-z0-9_-]*).*?[xX×]\s*[*]?\(?(\d+)/i,
+            );
+            if (legacyMatch) {
+              addMatchedProduct({
+                id: legacyMatch[1].trim(),
+                name: "",
+                warehouse: currentWarehouse,
+                quantity: parseInt(legacyMatch[2], 10),
+              });
+              continue;
+            }
+
+            const productLine = cleanLine
+              .replace(/^[-•]\s*/, "")
+              .replace(/\s*[·|]\s*\d+(?:\.\d+)?\s*(?:ml|oz)(?:\s*[xX×]\s*\d+)?\s*$/i, "");
+            const productMatch = productLine.match(
+              /^([A-Za-z0-9][A-Za-z0-9_-]*)\s+-\s+(.+)$/,
+            );
+            if (!productMatch) continue;
+
+            const quantityLine = String(lines[index + 1] || "").replace(/\*/g, "");
+            const quantityMatch = quantityLine.match(/[xX×]\s*(\d+)\b/);
+            if (!quantityMatch) continue;
+
+            addMatchedProduct({
+              id: productMatch[1].trim(),
+              name: productMatch[2].trim(),
+              warehouse: currentWarehouse,
+              quantity: parseInt(quantityMatch[1], 10),
+            });
+            index += 1;
+          }
 
           if (importedCount > 0) {
             cartItems = tempCart;
