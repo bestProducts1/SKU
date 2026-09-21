@@ -4,8 +4,8 @@ const PRODUCT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFWY
 const CACHE_DURATION = 5 * 60 * 1000;
 const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV1";
 const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV1";
-const SKU_CART_STORAGE_KEY = "bestProducts1SkuCartV2";
-const SKU_CART_RESET_KEY = "bestProducts1SkuCartResetV2";
+const SKU_CART_STORAGE_KEY = "bestProducts1SharedCartV3";
+const SKU_CART_RESET_KEY = "bestProducts1SharedCartResetV3";
 window.perfumeDB = [];
 window.orderDB = [];
 
@@ -23,7 +23,10 @@ function parseSkuCart(rawCart) {
 function resetSkuCartOnce() {
   if (localStorage.getItem(SKU_CART_RESET_KEY) === "done") return;
   localStorage.removeItem("perfumeCart");
+  localStorage.removeItem("bestProducts1CatalogCartV1");
+  localStorage.removeItem("bestProducts1CatalogCartV2");
   localStorage.removeItem("bestProducts1SkuCartV1");
+  localStorage.removeItem("bestProducts1SkuCartV2");
   localStorage.removeItem(SKU_CART_STORAGE_KEY);
   localStorage.removeItem("perfumeDB_Data_v2");
   localStorage.removeItem("perfumeDB_Time_v2");

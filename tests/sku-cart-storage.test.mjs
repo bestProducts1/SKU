@@ -23,27 +23,37 @@ function createContext() {
   return { sandbox, memory };
 }
 
-test("SKU cart clears all legacy carts once", () => {
+test("SKU cart clears all legacy carts once before joining the shared cart", () => {
   const { sandbox, memory } = createContext();
   memory.set("perfumeCart", JSON.stringify([{ name: "B02", quantity: 2 }]));
+  memory.set("bestProducts1CatalogCartV2", JSON.stringify([{ name: "IL-B001", quantity: 1 }]));
   memory.set("bestProducts1SkuCartV1", JSON.stringify([{ name: "B03", quantity: 1 }]));
+  memory.set("bestProducts1SkuCartV2", JSON.stringify([{ name: "IL-B008", quantity: 1 }]));
 
   const cart = JSON.parse(JSON.stringify(sandbox.readSkuToolCart()));
   assert.deepEqual(cart, []);
   assert.equal(memory.has("perfumeCart"), false);
+  assert.equal(memory.has("bestProducts1CatalogCartV2"), false);
   assert.equal(memory.has("bestProducts1SkuCartV1"), false);
-  assert.equal(memory.get("bestProducts1SkuCartResetV2"), "done");
+  assert.equal(memory.has("bestProducts1SkuCartV2"), false);
+  assert.equal(memory.get("bestProducts1SharedCartResetV3"), "done");
 });
 
-test("SKU cart writes only official SKUs to its private key", () => {
+test("SKU cart writes official SKUs to the cart shared with catalog", () => {
   const { sandbox, memory } = createContext();
   const written = JSON.parse(JSON.stringify(sandbox.writeSkuToolCart([
     { name: "IL-B008", quantity: 1 },
   ])));
 
   assert.equal(written[0].name, "IL-B008");
-  assert.equal(JSON.parse(memory.get("bestProducts1SkuCartV2"))[0].name, "IL-B008");
+  assert.equal(JSON.parse(memory.get("bestProducts1SharedCartV3"))[0].name, "IL-B008");
   assert.equal(memory.has("perfumeCart"), false);
+});
+
+test("shared SKU cart items keep the catalog reconciliation fields", () => {
+  const html = source("index.html");
+  assert.match(html, /brand:\s*String\(product\.brand/);
+  assert.match(html, /ml:\s*String\(product\.ml/);
 });
 
 test("the new product sheet becomes the only SKU product model", () => {

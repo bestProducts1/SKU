@@ -658,7 +658,7 @@
       </div>
     </div>
 
-    <script src="db.js?v=4"></script>
+    <script src="db.js?v=5"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -793,6 +793,8 @@
           img: product.img,
           quantity,
           price: Number(product.price) || 0,
+          brand: String(product.brand || "").trim(),
+          ml: String(product.ml || "").trim(),
           warehouse: getOrderWarehouseCode(product),
           stock: Number(product.stock) || 0,
           sku2: String(product.sku2 || "").trim(),
