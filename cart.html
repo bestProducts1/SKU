@@ -24,7 +24,7 @@
       .header h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
       .back-link { text-decoration: none; color: var(--primary-color); font-size: 0.95rem; font-weight: 500; padding: 6px 14px; border-radius: 18px; background: rgba(0, 122, 255, 0.1); }
       .cart-container { max-width: 1200px; margin: 20px auto 10px; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-      
+
       .cart-item { background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; padding: 10px; position: relative; border: 1px solid rgba(0, 0, 0, 0.02); transition: all 0.2s; }
       .product-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background-color: #f4f4f4; }
       .product-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -39,10 +39,14 @@
       .quantity-controls button { background-color: #fff; border: 0.5px solid rgba(0, 0, 0, 0.04); width: 28px; height: 28px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
       .quantity-controls .quantity { font-size: 1rem; font-weight: 600; margin: 0 8px; }
       .remove-btn { background: rgba(255, 255, 255, 0.9); color: #ff3b30; border: none; width: 26px; height: 26px; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: absolute; top: 6px; right: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); z-index: 10; }
-      
+
       .preview-section { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
       .preview-card { background-color: #fff; border-radius: 12px; padding: 20px; border: 1px solid rgba(0, 0, 0, 0.02); }
-      #order-preview-text { width: 100%; height: 160px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.95rem; resize: none; background-color: #fbfbfd; outline: none; font-weight: bold; }
+      #order-preview-text { width: 100%; height: 140px; padding: 12px; border: 2px solid #f2f2f7; border-radius: 10px; font-family: monospace; font-size: 0.95rem; line-height: 1.55; resize: none; background-color: #fbfbfd; outline: none; font-weight: bold; box-sizing: border-box; white-space: pre; overflow: auto; }
+      #internal-finance-box { background: #fbfbfd; border: 1px solid #e5e5ea; padding: 12px 18px; border-radius: 10px; margin: 0 0 15px; display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+      .finance-title { color: #1d1d1f; font-size: 0.88rem; font-weight: 750; white-space: nowrap; }
+      .finance-values { color: #68686d; font-size: 0.84rem; font-weight: 650; text-align: right; }
+      .finance-total { color: #007aff; font-size: 1rem; font-weight: 800; }
       .cart-summary { position: fixed; bottom: 0; left: 0; right: 0; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); padding: 15px 30px 25px; border-top: 1px solid rgba(0, 0, 0, 0.1); z-index: 999; }
       .summary-content { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
       .total-value { font-size: 1.6rem; font-weight: 800; }
@@ -65,7 +69,7 @@
 
     <div class="preview-section" id="preview-section" style="display: none">
       <div class="preview-card">
-        <textarea id="order-preview-text" readonly></textarea>
+        <textarea id="order-preview-text" wrap="off" readonly></textarea>
       </div>
     </div>
 
@@ -90,6 +94,18 @@
         const clearCartBtn = document.getElementById("clear-cart-btn");
         const emptyCartMsg = document.getElementById("empty-cart-msg");
         let cartItems = [];
+        const discountTiers = [
+          { min: 1, max: 1, percent: 0 },
+          { min: 2, max: 2, percent: 0.03 },
+          { min: 3, max: 4, percent: 0.05 },
+          { min: 5, max: 9, percent: 0.08 },
+          { min: 10, max: 19, percent: 0.14 },
+          { min: 20, max: 29, percent: 0.24 },
+          { min: 30, max: 49, percent: 0.26 },
+          { min: 50, max: 79, percent: 0.29 },
+          { min: 80, max: 100, percent: 0.32 },
+          { min: 101, max: Infinity, percent: 0.35 },
+        ];
 
         function loadCart() {
           const storedCart = localStorage.getItem("perfumeCart");
@@ -127,8 +143,16 @@
           const warehouseCode = warehouseMatch
             ? warehouseMatch[1]
             : savedWarehouseCode || "OTHER";
+          const unitPrice = Number(orderProduct && orderProduct.price) ||
+            Number(item.price) || 0;
 
-          return { matchedProduct, orderProduct, orderSku, warehouseCode };
+          return {
+            matchedProduct,
+            orderProduct,
+            orderSku,
+            warehouseCode,
+            unitPrice,
+          };
         }
 
         function restoreWarehousePrefix(value, orderSku) {
@@ -140,14 +164,24 @@
             : rawValue;
         }
 
-        function buildWarehouseOrderPreview() {
+        function buildOrderSummary() {
           const warehouseGroups = new Map();
+          let totalQty = 0;
+          let subtotal = 0;
 
           cartItems.forEach((item) => {
-            const { matchedProduct, orderSku, warehouseCode } =
-              resolveCartCatalogData(item);
-            let sku1 = String(item.sku || matchedProduct && matchedProduct.sku || "").trim();
-            let sku2 = String(item.sku2 || matchedProduct && matchedProduct.sku2 || "").trim();
+            const {
+              matchedProduct,
+              orderSku,
+              warehouseCode,
+              unitPrice,
+            } = resolveCartCatalogData(item);
+            let sku1 = String(
+              item.sku || matchedProduct && matchedProduct.sku || "",
+            ).trim();
+            let sku2 = String(
+              item.sku2 || matchedProduct && matchedProduct.sku2 || "",
+            ).trim();
             sku1 = restoreWarehousePrefix(sku1, orderSku);
             sku2 = restoreWarehousePrefix(sku2, orderSku);
 
@@ -160,93 +194,89 @@
             }
 
             if (!warehouseGroups.has(warehouseCode)) {
-              warehouseGroups.set(warehouseCode, []);
+              warehouseGroups.set(warehouseCode, {
+                lines: [],
+                quantity: 0,
+                subtotal: 0,
+              });
             }
-            warehouseGroups.get(warehouseCode).push(orderLine);
+            const group = warehouseGroups.get(warehouseCode);
+            group.lines.push(orderLine);
+            group.quantity += quantity;
+            group.subtotal += unitPrice * quantity;
+            totalQty += quantity;
+            subtotal += unitPrice * quantity;
           });
 
+          const tier = discountTiers.find(
+            (item) => totalQty >= item.min && totalQty <= item.max,
+          ) || discountTiers[0];
+          const discountPercent = tier.percent;
+          const discountAmount = subtotal * discountPercent;
+          const finalTotal = subtotal - discountAmount;
           const warehousePriority = { IL: 0, TX: 1 };
-          return Array.from(warehouseGroups.entries())
+          const warehouseSummaries = Array.from(warehouseGroups.entries())
             .sort(([warehouseA], [warehouseB]) => {
               const rankA = warehousePriority[warehouseA] ?? 99;
               const rankB = warehousePriority[warehouseB] ?? 99;
               return rankA - rankB || warehouseA.localeCompare(warehouseB);
             })
-            .map(
-              ([warehouse, lines]) =>
-                `${warehouse} Warehouse\n${lines.join("\n")}`,
-            )
+            .map(([warehouse, group]) => ({
+              warehouse,
+              ...group,
+              discountPercent,
+              discountAmount: group.subtotal * discountPercent,
+              total: group.subtotal * (1 - discountPercent),
+            }));
+
+          const preview = warehouseSummaries
+            .map((group) => {
+              const discountText = group.discountPercent > 0
+                ? ` | $${group.subtotal.toFixed(2)} - ${(group.discountPercent * 100).toFixed(0)}% = $${group.total.toFixed(2)}`
+                : ` | $${group.total.toFixed(2)}`;
+              const itemLabel = group.quantity === 1 ? "item" : "items";
+              return `${group.warehouse} Warehouse | ${group.quantity} ${itemLabel}${discountText}\n${group.lines.join("+")}`;
+            })
             .join("\n\n");
+
+          return {
+            totalQty,
+            subtotal,
+            discountPercent,
+            discountAmount,
+            finalTotal,
+            warehouseSummaries,
+            preview,
+          };
         }
 
         function updatePageState() {
-          const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-          let totalWeight = 0;
-          let totalRmbCost = 0;
-
-          cartItems.forEach((item) => {
-            const isSet = item.caption && (item.caption.includes("套盒") || item.caption.includes("Set"));
-            totalWeight += (isSet ? 4 : 1.2) * item.quantity;
-
-            let directCost = 0;
-            let finalTargetSku = "";
-
-            if (window.perfumeDB && window.perfumeDB.length > 0) {
-              const searchName = String(item.name || "").trim().toLowerCase();
-              const searchSku = String(item.sku || "").trim().toLowerCase();
-              const searchCaption = String(item.caption || "").trim().toLowerCase();
-
-              const mainProduct = window.perfumeDB.find(p => {
-                const tableId = String(p.id || "").trim().toLowerCase();
-                const tableSku = String(p.sku || "").trim().toLowerCase();
-                return (tableId && (searchName === tableId || searchSku === tableId)) ||
-                       (tableSku && (searchName === tableSku || searchSku === tableSku || searchCaption.includes(tableSku)));
-              });
-
-              if (mainProduct && mainProduct.id) {
-                finalTargetSku = String(mainProduct.id).trim().toLowerCase();
-              }
-            }
-
-            if (!finalTargetSku) {
-              finalTargetSku = String(item.name || "").trim().toLowerCase();
-            }
-
-            if (window.costDB && window.costDB.length > 0) {
-              const matched = window.costDB.find(p => p.sku && String(p.sku).trim().toLowerCase() === finalTargetSku);
-              if (matched) directCost = Number(matched.cost) || 0;
-            }
-            
-            totalRmbCost += directCost * item.quantity;
-          });
-
-          let trackingNumCount = totalQty > 80 ? 3 : (totalQty > 40 ? 2 : 1);
-          let baseShipping = 0;
-          if (totalWeight > 0) {
-            let roundedWeight = Math.ceil(totalWeight);
-            baseShipping = roundedWeight <= 3 ? 11 : 11 + (roundedWeight - 3) * 1;
+          const summary = buildOrderSummary();
+          if (totalQtyDisplay) {
+            totalQtyDisplay.innerHTML = `${summary.totalQty} <span>items</span>`;
           }
-          let warehouseFee = totalQty > 0 ? (0.8 + (totalQty - 1) * 0.3 + (totalQty === 1 ? 0.7 : 1.5)) : 0;
-          const totalUsdShipping = baseShipping + warehouseFee;
-
-          if (totalQtyDisplay) totalQtyDisplay.innerHTML = `${totalQty} <span>items</span>`;
 
           if (previewTextarea && previewTextarea.parentNode) {
             let financeBox = document.getElementById("internal-finance-box");
             if (!financeBox) {
               financeBox = document.createElement("div");
               financeBox.id = "internal-finance-box";
-              financeBox.style.cssText = "background:#fbfbfd; border:1px solid #e5e5ea; padding:12px 18px; border-radius:10px; margin:15px 0; font-size:0.85rem; color:#86868b; font-weight:600; display:flex; justify-content:space-between; align-items:center;";
               previewTextarea.parentNode.insertBefore(financeBox, previewTextarea);
             }
             financeBox.innerHTML = `
-              <span style="color:#1d1d1f;">📊 Data Summary:</span>
-              <span>${totalRmbCost.toFixed(2)} | <strong style="color:#007aff;">$${totalUsdShipping.toFixed(2)}</strong> (${trackingNumCount} P)</span>
+              <span class="finance-title">Order Summary</span>
+              <span class="finance-values">
+                ${summary.totalQty} ${summary.totalQty === 1 ? "item" : "items"} ·
+                Subtotal $${summary.subtotal.toFixed(2)} ·
+                ${(summary.discountPercent * 100).toFixed(0)}% off
+                (-$${summary.discountAmount.toFixed(2)}) ·
+                <span class="finance-total">Total $${summary.finalTotal.toFixed(2)}</span>
+              </span>
             `;
           }
 
           if (previewTextarea) {
-            previewTextarea.value = buildWarehouseOrderPreview();
+            previewTextarea.value = summary.preview;
           }
         }
 
@@ -290,7 +320,7 @@
 
             itemEl.innerHTML = `
               <button class="remove-btn">&times;</button>
-              
+
               <div class="product-image-container">
                 <img src="${correctImgSrc}" alt="${displayName}" class="product-image" loading="lazy" onerror="this.src='placeholder.png';">
               </div>
@@ -335,7 +365,7 @@
 
         checkoutBtn.addEventListener("click", () => {
           navigator.clipboard.writeText(previewTextarea.value);
-          
+
           let toast = document.getElementById("copy-toast");
           if (!toast) {
             toast = document.createElement("div");
