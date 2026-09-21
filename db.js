@@ -12,9 +12,52 @@ const NEW_COST_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRwf
 const ORDER_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFWYImNbJ0ao5z0VDk_VZwhOP1pnY2UZdFuwxtYOvKaNfEX4sInJh7uk-MlRSH9kffdZ5TjzhudLao/pub?gid=1967485424&single=true&output=csv";
 
 const CACHE_DURATION = 5 * 60 * 1000;
+const SKU_CART_STORAGE_KEY = "bestProducts1SkuCartV1";
+const LEGACY_CART_STORAGE_KEY = "perfumeCart";
 window.perfumeDB = [];
 window.costDB = [];
 window.orderDB = [];
+
+function parseSkuCart(rawCart) {
+  try {
+    const cart = JSON.parse(rawCart || "[]");
+    return Array.isArray(cart)
+      ? cart.filter((item) => item && typeof item === "object")
+      : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function isSkuToolCartItem(item) {
+  return item?.cartSource === "sku-tool" ||
+    ["internalId", "orderSku", "sku", "sku2", "supplier", "cost", "tier"]
+      .some((key) => Object.prototype.hasOwnProperty.call(item || {}, key));
+}
+
+function readSkuToolCart() {
+  const storedCart = localStorage.getItem(SKU_CART_STORAGE_KEY);
+  if (storedCart !== null) return parseSkuCart(storedCart);
+
+  // Preserve SKU-tool entries from the previously shared cart while leaving
+  // storefront entries behind for the catalog website.
+  const legacyCart = parseSkuCart(localStorage.getItem(LEGACY_CART_STORAGE_KEY));
+  const skuCart = legacyCart.filter(isSkuToolCartItem).map((item) => ({
+    ...item,
+    cartSource: "sku-tool",
+  }));
+  localStorage.setItem(SKU_CART_STORAGE_KEY, JSON.stringify(skuCart));
+  return skuCart;
+}
+
+function writeSkuToolCart(items) {
+  const cart = (Array.isArray(items) ? items : []).map((item) => ({
+    ...item,
+    cartSource: "sku-tool",
+  }));
+  localStorage.setItem(SKU_CART_STORAGE_KEY, JSON.stringify(cart));
+  return cart;
+}
 
 // 🧠【最高优先级对账防漏装甲】：直接注入 A19 和 A31 的真实拿货价
 const INJECTED_COSTS = {

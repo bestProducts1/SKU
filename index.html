@@ -428,12 +428,6 @@
         color: var(--primary-color);
         margin: 0 0 2px;
       }
-      .product-internal-id {
-        font-size: 0.68rem;
-        font-weight: 500;
-        color: #aaa;
-        margin: 0 0 5px;
-      }
       .product-name {
         font-size: 0.95rem;
         font-weight: 600;
@@ -664,7 +658,7 @@
       </div>
     </div>
 
-    <script src="db.js?v=2"></script>
+    <script src="db.js?v=3"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -992,7 +986,6 @@
             </div>
             <div class="product-info">
               <p class="product-id">${displaySku}</p>
-              ${orderSku ? `<p class="product-internal-id">Internal: ${perfume.id}</p>` : ""}
               <p class="product-name">${perfume.name}</p>
               <p class="product-price">$${Number(orderProduct.price || perfume.price).toFixed(2)}</p>
               <span class="warehouse-badge${!isAvailable || isComingSoon ? " low-stock" : ""}">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
@@ -1010,13 +1003,12 @@
       };
 
       function loadCartFromLocalStorage() {
-        const storedCart = localStorage.getItem("perfumeCart");
-        cartItems = storedCart ? JSON.parse(storedCart) : [];
+        cartItems = readSkuToolCart();
         updateCartCount();
       }
 
       function saveCartToLocalStorage() {
-        localStorage.setItem("perfumeCart", JSON.stringify(cartItems));
+        cartItems = writeSkuToolCart(cartItems);
       }
 
       function updateCartCount() {
