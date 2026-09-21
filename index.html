@@ -658,7 +658,7 @@
       </div>
     </div>
 
-    <script src="db.js?v=3"></script>
+    <script src="db.js?v=4"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -782,9 +782,21 @@
       }
 
       function getMappedOrderProduct(perfume) {
-        return window.findOrderCatalogProduct
-          ? window.findOrderCatalogProduct(perfume)
-          : null;
+        return perfume || null;
+      }
+
+      function createSkuCartItem(product, quantity = 1) {
+        const sku = String(product && product.sku || "").trim().toUpperCase();
+        return {
+          name: sku,
+          caption: `${sku} - ${product.name}`,
+          img: product.img,
+          quantity,
+          price: Number(product.price) || 0,
+          warehouse: getOrderWarehouseCode(product),
+          stock: Number(product.stock) || 0,
+          sku2: String(product.sku2 || "").trim(),
+        };
       }
 
       function getCatalogProductsForFilters() {
@@ -1050,40 +1062,18 @@
 
         if (!perfumeData) return;
 
-        const { id, name, img, price, tier, sku, sku2, supplier, cost } = perfumeData;
-        const existingItem = cartItems.find((cartItem) => cartItem.name === id);
-        const orderProduct = getMappedOrderProduct(perfumeData);
-        const orderSku = String(orderProduct && orderProduct.sku || "").trim();
-        const displaySku = orderSku || id;
-        const warehouse = getOrderWarehouseCode(orderProduct);
-        const catalogPrice = Number(orderProduct && orderProduct.price) || Number(price);
-        const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
+        const nextItem = createSkuCartItem(perfumeData);
+        const existingItem = cartItems.find(
+          (cartItem) => cartItem.name === nextItem.name,
+        );
 
         if (existingItem) {
           existingItem.quantity++;
-          existingItem.orderSku = orderSku || existingItem.orderSku || "";
-          existingItem.internalId = id;
-          existingItem.caption = `${displaySku} - ${name}`;
-          existingItem.warehouse = warehouse;
-          existingItem.stock = catalogStock;
-          existingItem.price = catalogPrice;
-        } else {
-          cartItems.push({
-            name: id,
-            internalId: id,
-            orderSku,
-            caption: `${displaySku} - ${name}`,
-            img,
-            quantity: 1,
-            price: catalogPrice,
-            warehouse,
-            stock: catalogStock,
-            tier: tier,
-            sku: sku || "",
-            sku2: sku2 || "",
-            supplier: supplier,
-            cost: cost ? Number(cost) : 0
+          Object.assign(existingItem, nextItem, {
+            quantity: existingItem.quantity,
           });
+        } else {
+          cartItems.push(nextItem);
         }
         saveCartToLocalStorage();
         updateCartCount();
@@ -1287,47 +1277,17 @@
               return;
             }
 
-            const mappedOrderSku = window.getOrderSkuForProduct
-              ? window.getOrderSkuForProduct(product)
-              : "";
-            const incomingOrderSku = /^(?:IL|TX)-/i.test(orderItem.id)
-              ? String(orderItem.id).trim().toUpperCase()
-              : "";
-            const orderSku = incomingOrderSku || mappedOrderSku;
-            const displaySku = orderSku || product.id;
-            const orderProduct = (window.orderDB || []).find(
-              (catalogProduct) =>
-                String(catalogProduct.sku || "").trim().toUpperCase() === orderSku,
-            ) || getMappedOrderProduct(product);
-            const warehouse = getOrderWarehouseCode(orderProduct);
-            const catalogPrice = Number(orderProduct && orderProduct.price) || Number(product.price);
-            const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
-
-            const existingItem = tempCart.find((item) => item.name === product.id);
+            const nextItem = createSkuCartItem(product, qty);
+            const existingItem = tempCart.find(
+              (item) => item.name === nextItem.name,
+            );
             if (existingItem) {
               existingItem.quantity += qty;
-              existingItem.orderSku = orderSku || existingItem.orderSku || "";
-              existingItem.caption = `${displaySku} - ${product.name}`;
-              existingItem.warehouse = warehouse;
-              existingItem.stock = catalogStock;
-              existingItem.price = catalogPrice;
-            } else {
-              tempCart.push({
-                name: product.id,
-                internalId: product.id,
-                orderSku,
-                caption: `${displaySku} - ${product.name}`,
-                img: product.img,
-                quantity: qty,
-                price: catalogPrice,
-                warehouse,
-                stock: catalogStock,
-                tier: product.tier,
-                sku: product.sku || "",
-                sku2: product.sku2 || "",
-                supplier: product.supplier,
-                cost: product.cost ? Number(product.cost) : 0,
+              Object.assign(existingItem, nextItem, {
+                quantity: existingItem.quantity,
               });
+            } else {
+              tempCart.push(nextItem);
             }
             importedCount += qty;
           };
@@ -1430,37 +1390,17 @@
                               db.find(p => (p.sku && p.sku.includes(skuName)) || (p.sku2 && p.sku2.includes(skuName)) || (p.name && p.name.includes(skuName)));
 
               if (product) {
-                const orderProduct = getMappedOrderProduct(product);
-                const orderSku = String(orderProduct && orderProduct.sku || "").trim();
-                const displaySku = orderSku || product.id;
-                const warehouse = getOrderWarehouseCode(orderProduct);
-                const catalogPrice = Number(orderProduct && orderProduct.price) || Number(product.price);
-                const catalogStock = Number(orderProduct && orderProduct.stock) || 0;
-                const existingItem = cartItems.find((cartItem) => cartItem.name === product.id);
+                const nextItem = createSkuCartItem(product, qty);
+                const existingItem = cartItems.find(
+                  (cartItem) => cartItem.name === nextItem.name,
+                );
                 if (existingItem) {
                   existingItem.quantity += qty;
-                  existingItem.orderSku = orderSku || existingItem.orderSku || "";
-                  existingItem.caption = `${displaySku} - ${product.name}`;
-                  existingItem.warehouse = warehouse;
-                  existingItem.stock = catalogStock;
-                  existingItem.price = catalogPrice;
-                } else {
-                  cartItems.push({
-                    name: product.id,
-                    internalId: product.id,
-                    orderSku,
-                    caption: `${displaySku} - ${product.name}`,
-                    img: product.img,
-                    quantity: qty,
-                    price: catalogPrice,
-                    warehouse,
-                    stock: catalogStock,
-                    tier: product.tier,
-                    sku: product.sku || "",
-                    sku2: product.sku2 || "",
-                    supplier: product.supplier,
-                    cost: product.cost ? Number(product.cost) : 0
+                  Object.assign(existingItem, nextItem, {
+                    quantity: existingItem.quantity,
                   });
+                } else {
+                  cartItems.push(nextItem);
                 }
                 importedCount += qty;
               } else {

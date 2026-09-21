@@ -115,23 +115,13 @@
         }
 
         function resolveCartCatalogData(item) {
-          const lookupKeys = [item.name, item.internalId]
-            .map((value) => String(value || "").trim().toLowerCase())
-            .filter(Boolean);
+          const cartSku = String(item.name || "").trim().toUpperCase();
           const matchedProduct = (window.perfumeDB || []).find((product) =>
-            lookupKeys.includes(String(product.id || "").trim().toLowerCase()),
+            String(product.id || product.sku || "").trim().toUpperCase() === cartSku,
           ) || null;
-          const mappedOrderProduct = matchedProduct && window.findOrderCatalogProduct
-            ? window.findOrderCatalogProduct(matchedProduct)
-            : null;
-          const savedOrderSku = String(item.orderSku || "").trim().toUpperCase();
-          const savedOrderProduct = (window.orderDB || []).find(
-            (product) =>
-              String(product.sku || "").trim().toUpperCase() === savedOrderSku,
-          ) || null;
-          const orderProduct = mappedOrderProduct || savedOrderProduct;
+          const orderProduct = matchedProduct;
           const orderSku = String(
-            (orderProduct && orderProduct.sku) || savedOrderSku,
+            (orderProduct && orderProduct.sku) || cartSku,
           ).trim().toUpperCase();
           const warehouseMatch = orderSku.match(/^([A-Z]+)-/);
           const savedWarehouseCode = String(item.warehouse || "")
@@ -153,15 +143,6 @@
           };
         }
 
-        function restoreWarehousePrefix(value, orderSku) {
-          const rawValue = String(value || "").trim();
-          const normalizedOrderSku = String(orderSku || "").trim().toUpperCase();
-          const bareOrderSku = normalizedOrderSku.replace(/^[A-Z]+-/, "");
-          return rawValue.toUpperCase() === bareOrderSku && normalizedOrderSku
-            ? normalizedOrderSku
-            : rawValue;
-        }
-
         function buildOrderSummary() {
           const warehouseGroups = new Map();
           let totalQty = 0;
@@ -174,22 +155,12 @@
               warehouseCode,
               unitPrice,
             } = resolveCartCatalogData(item);
-            let sku1 = String(
-              item.sku || matchedProduct && matchedProduct.sku || "",
-            ).trim();
-            let sku2 = String(
+            const alternateSku = String(
               item.sku2 || matchedProduct && matchedProduct.sku2 || "",
             ).trim();
-            sku1 = restoreWarehousePrefix(sku1, orderSku);
-            sku2 = restoreWarehousePrefix(sku2, orderSku);
 
             const quantity = Number(item.quantity) || 0;
-            let orderLine = `${orderSku || item.name}*${quantity}`;
-            if (sku1 && sku2) {
-              orderLine = `${sku1}*${quantity}/${sku2}*${quantity}`;
-            } else if (sku1 || sku2) {
-              orderLine = `${sku1 || sku2}*${quantity}`;
-            }
+            const orderLine = `${alternateSku || orderSku || item.name}*${quantity}`;
 
             if (!warehouseGroups.has(warehouseCode)) {
               warehouseGroups.set(warehouseCode, {
@@ -308,11 +279,8 @@
               : isAvailable
                 ? `${stock} in stock`
                 : `Below 19 (${stock})`;
-            const internalId = matchedProduct
-              ? matchedProduct.id
-              : (item.internalId || item.name);
             const displayName = matchedProduct
-              ? `${orderSku || internalId} - ${matchedProduct.name}`
+              ? `${orderSku} - ${matchedProduct.name}`
               : (item.caption || item.name);
             const correctImgSrc = item.img || `images/${item.name}.webp`;
 
@@ -385,6 +353,6 @@
         renderCart();
       });
     </script>
-    <script src="db.js?v=3"></script>
+    <script src="db.js?v=4"></script>
   </body>
 </html>
