@@ -658,8 +658,9 @@
       </div>
     </div>
 
-    <script src="inquiry-sync.js?v=20261009-sku-inquiry"></script>
-    <script src="db.js?v=5"></script>
+    <script src="inquiry-sync.js?v=20261009-manual-sku-sync"></script>
+    <script src="sku-notice.js?v=20261009-manual-sku-sync"></script>
+    <script src="db.js?v=20261009-manual-sku-sync"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -1254,20 +1255,18 @@
           return orderCatalogProduct ? null : findByIncomingSupplierCode();
         }
 
-        function publishImportedInquiry() {
-          try {
-            window.SkuInquirySync.publish(cartItems);
-            return "\n\n📋 Inquiry saved for catalog and perfume-list. Refresh either site to import the list using its own prices.";
-          } catch (error) {
-            console.error("Inquiry list could not be synced:", error);
-            return "\n\n⚠️ SKU cart saved, but syncing the inquiry list failed. Please paste again after checking browser storage.";
+        function showPasteFeedback(message, warning = false) {
+          if (window.skuInquirySyncFailed) {
+            message += "\nSKU cart saved, but syncing failed. Refresh SKU to retry.";
+            warning = true;
           }
+          window.showSkuNotice(message, { warning });
         }
 
         function handleOrderPaste(text) {
           const db = window.perfumeDB || [];
           if (db.length === 0) {
-            alert("Database not loaded yet.");
+            showPasteFeedback("Products are still loading. Please paste your list again in a moment.", true);
             return;
           }
 
@@ -1359,15 +1358,15 @@
             clearSearchButton.style.display = "none";
 
             let msg = `✅ Success! Added ${importedCount} items.`;
-            msg += publishImportedInquiry();
             if (notFoundList.length > 0) {
               msg += `\n\n⚠️ Skipped (Not in DB): ${notFoundList.join(", ")}`;
             }
-            alert(msg);
+            showPasteFeedback(msg, notFoundList.length > 0);
           } else {
             if (lines.length > 2) {
-              alert(
+              showPasteFeedback(
                 "Detected paste but found 0 products. Check IDs match database.",
+                true,
               );
             }
           }
@@ -1376,7 +1375,7 @@
         function handleSkuStringPaste(text) {
           const db = window.perfumeDB || [];
           if (db.length === 0) {
-            alert("Database not loaded yet.");
+            showPasteFeedback("Products are still loading. Please paste your list again in a moment.", true);
             return;
           }
 
@@ -1433,16 +1432,16 @@
             clearSearchButton.style.display = "none";
 
             let msg = `✅ 成功加购 ${importedCount} 件商品！`;
-            msg += publishImportedInquiry();
             if (notFoundList.length > 0) {
               msg += `\n\n⚠️ 未找到以下匹配商品 (请检查名字与表格中是否完全一致):\n${notFoundList.join(" , ")}`;
             }
-            alert(msg);
+            showPasteFeedback(msg, notFoundList.length > 0);
           } else {
             searchInput.value = text.trim();
             searchTerm = text.trim().toLowerCase();
             clearSearchButton.style.display = searchTerm ? "block" : "none";
             renderPerfumes();
+            showPasteFeedback("No matching products were added. Check the names or SKUs in your list.", true);
           }
         }
 

@@ -6,6 +6,7 @@ const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV1";
 const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV1";
 const SKU_CART_STORAGE_KEY = "bestProducts1SharedCartV3";
 const SKU_CART_RESET_KEY = "bestProducts1SharedCartResetV3";
+const SKU_INQUIRY_PENDING_CLEAR_KEY = "bestProducts1:sku:inquiry-clear-pending:v1";
 window.perfumeDB = [];
 window.orderDB = [];
 
@@ -37,14 +38,83 @@ function resetSkuCartOnce() {
 
 function readSkuToolCart() {
   resetSkuCartOnce();
-  return parseSkuCart(localStorage.getItem(SKU_CART_STORAGE_KEY));
+  const rawCart = localStorage.getItem(SKU_CART_STORAGE_KEY);
+  const cart = parseSkuCart(rawCart);
+  if (cart.length) syncSkuCartInquiry(cart, true);
+  else if (rawCart && hasPendingSkuInquiryClear()) {
+    try {
+      const stored = JSON.parse(rawCart);
+      if (Array.isArray(stored) && !stored.length) syncSkuCartInquiry([], true);
+    } catch {}
+  }
+  return cart;
+}
+
+function hasPendingSkuInquiryClear() {
+  try { return localStorage.getItem(SKU_INQUIRY_PENDING_CLEAR_KEY) === "pending"; }
+  catch { return false; }
+}
+
+function clearPendingSkuInquiryClear() {
+  try { localStorage.removeItem(SKU_INQUIRY_PENDING_CLEAR_KEY); }
+  catch (error) { console.warn("The pending inquiry retry could not be retired:", error); }
 }
 
 function writeSkuToolCart(items) {
   resetSkuCartOnce();
   const cart = Array.isArray(items) ? items : [];
   localStorage.setItem(SKU_CART_STORAGE_KEY, JSON.stringify(cart));
+  try {
+    if (!cart.length) localStorage.setItem(SKU_INQUIRY_PENDING_CLEAR_KEY, "pending");
+    else clearPendingSkuInquiryClear();
+  } catch (error) { console.warn("The pending inquiry retry could not be saved:", error); }
+  syncSkuCartInquiry(cart);
   return cart;
+}
+
+function skuInquiryQuantitySignature(items, fromCart = false) {
+  const grouped = new Map();
+  for (const item of items) {
+    const rawSku = fromCart ? item.name || item.sku || item.id : item.sku;
+    if (typeof rawSku !== "string") return null;
+    const sku = rawSku.trim().toUpperCase();
+    const warehouse = String(item.warehouse || sku.split("-")[0]).trim().toUpperCase().replace(/\s+WAREHOUSE$/, "").trim();
+    const rawQuantity = item.quantity;
+    if (!/^[A-Z]{1,10}-[A-Z0-9][A-Z0-9_-]{0,99}$/.test(sku) || warehouse !== sku.split("-")[0] ||
+        (typeof rawQuantity !== "number" && !(typeof rawQuantity === "string" && /^\d+$/.test(rawQuantity.trim())))) return null;
+    const quantity = Number(rawQuantity);
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) return null;
+    const key = `${sku}::${warehouse}`;
+    const total = (grouped.get(key) || 0) + quantity;
+    if (!Number.isSafeInteger(total)) return null;
+    grouped.set(key, total);
+  }
+  return JSON.stringify([...grouped].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function syncSkuCartInquiry(cart, onlyIfChanged = false) {
+  try {
+    if (!window.SkuInquirySync) throw new Error("The inquiry sync helper is unavailable.");
+    if (onlyIfChanged) {
+      const previous = window.SkuInquirySync.read();
+      if (previous && ((!cart.length && previous.action === "clear") ||
+          (cart.length && previous.action !== "clear" && skuInquiryQuantitySignature(cart, true) === skuInquiryQuantitySignature(previous.items)))) {
+        clearPendingSkuInquiryClear();
+        return true;
+      }
+    }
+    window.SkuInquirySync.publish(cart, { allowClear: true });
+    clearPendingSkuInquiryClear();
+    if (window.skuInquirySyncFailed) window.showSkuNotice?.("");
+    window.skuInquirySyncFailed = false;
+    return true;
+  } catch (error) {
+    console.warn("SKU cart saved, but inquiry sync failed:", error);
+    window.skuInquirySyncFailed = true;
+    const retry = cart.length || hasPendingSkuInquiryClear() ? "Refresh SKU to retry" : "Try the cart edit again";
+    window.showSkuNotice?.(`SKU cart saved, but syncing failed. ${retry}; catalog and perfume-list were not updated.`, { warning: true });
+    return false;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {

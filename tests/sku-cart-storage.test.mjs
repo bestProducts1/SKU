@@ -8,8 +8,10 @@ const source = (file) => fs.readFileSync(new URL(file, root), "utf8");
 
 function createContext() {
   const memory = new Map();
+  const notices = [];
   const sandbox = {
     console,
+    showSkuNotice: (message, options) => notices.push({ message, options }),
     document: { addEventListener() {} },
     localStorage: {
       getItem: (key) => memory.get(key) ?? null,
@@ -19,8 +21,9 @@ function createContext() {
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
+  vm.runInContext(source("inquiry-sync.js"), sandbox);
   vm.runInContext(source("db.js"), sandbox);
-  return { sandbox, memory };
+  return { sandbox, memory, notices };
 }
 
 test("SKU cart clears all legacy carts once before joining the shared cart", () => {
@@ -39,7 +42,7 @@ test("SKU cart clears all legacy carts once before joining the shared cart", () 
   assert.equal(memory.get("bestProducts1SharedCartResetV3"), "done");
 });
 
-test("SKU cart writes official SKUs to the cart shared with catalog", () => {
+test("SKU cart keeps its own records and publishes only official SKUs and quantities", () => {
   const { sandbox, memory } = createContext();
   const written = JSON.parse(JSON.stringify(sandbox.writeSkuToolCart([
     { name: "IL-B008", quantity: 1 },
@@ -47,7 +50,25 @@ test("SKU cart writes official SKUs to the cart shared with catalog", () => {
 
   assert.equal(written[0].name, "IL-B008");
   assert.equal(JSON.parse(memory.get("bestProducts1SharedCartV3"))[0].name, "IL-B008");
+  assert.deepEqual(JSON.parse(memory.get("bestProducts1:sku:inquiry:v1")).items, [{ sku: "IL-B008", warehouse: "IL", quantity: 1 }]);
   assert.equal(memory.has("perfumeCart"), false);
+});
+
+test("database writes never change either storefront scoped order and cart-storage failure never publishes", () => {
+  const { sandbox, memory } = createContext();
+  memory.set("bestProducts1SharedCartResetV3", "done");
+  memory.set("bestProducts1:catalog:cart:v1", "catalog stays independent");
+  memory.set("bestProducts1:perfume-list:cart:v1", "perfume stays independent");
+  sandbox.writeSkuToolCart([{ name: "IL-B008", warehouse: "IL", quantity: 2, price: 999, sku2: "private" }]);
+  const previous = memory.get("bestProducts1:sku:inquiry:v1");
+  assert.doesNotMatch(previous, /price|sku2|private/);
+  const setItem = sandbox.localStorage.setItem;
+  sandbox.localStorage.setItem = (key, value) => { if (key === "bestProducts1SharedCartV3") throw Error("Cart storage failed"); setItem(key, value); };
+  assert.throws(() => sandbox.writeSkuToolCart([]), /Cart storage failed/);
+  assert.equal(memory.get("bestProducts1:sku:inquiry:v1"), previous);
+  assert.equal(JSON.parse(memory.get("bestProducts1SharedCartV3"))[0].quantity, 2);
+  assert.equal(memory.get("bestProducts1:catalog:cart:v1"), "catalog stays independent");
+  assert.equal(memory.get("bestProducts1:perfume-list:cart:v1"), "perfume stays independent");
 });
 
 test("shared SKU cart items keep the catalog reconciliation fields", () => {
