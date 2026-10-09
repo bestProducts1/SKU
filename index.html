@@ -658,6 +658,7 @@
       </div>
     </div>
 
+    <script src="inquiry-sync.js?v=20261009-sku-inquiry"></script>
     <script src="db.js?v=5"></script>
 
     <script>
@@ -1253,6 +1254,16 @@
           return orderCatalogProduct ? null : findByIncomingSupplierCode();
         }
 
+        function publishImportedInquiry() {
+          try {
+            window.SkuInquirySync.publish(cartItems);
+            return "\n\n📋 Inquiry saved for catalog and perfume-list. Refresh either site to import the list using its own prices.";
+          } catch (error) {
+            console.error("Inquiry list could not be synced:", error);
+            return "\n\n⚠️ SKU cart saved, but syncing the inquiry list failed. Please paste again after checking browser storage.";
+          }
+        }
+
         function handleOrderPaste(text) {
           const db = window.perfumeDB || [];
           if (db.length === 0) {
@@ -1348,6 +1359,7 @@
             clearSearchButton.style.display = "none";
 
             let msg = `✅ Success! Added ${importedCount} items.`;
+            msg += publishImportedInquiry();
             if (notFoundList.length > 0) {
               msg += `\n\n⚠️ Skipped (Not in DB): ${notFoundList.join(", ")}`;
             }
@@ -1421,6 +1433,7 @@
             clearSearchButton.style.display = "none";
 
             let msg = `✅ 成功加购 ${importedCount} 件商品！`;
+            msg += publishImportedInquiry();
             if (notFoundList.length > 0) {
               msg += `\n\n⚠️ 未找到以下匹配商品 (请检查名字与表格中是否完全一致):\n${notFoundList.join(" , ")}`;
             }
