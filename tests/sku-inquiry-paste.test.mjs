@@ -101,7 +101,7 @@ test('low-stock SKU copy respects perfume and shoe stock thresholds separately',
 
 test('both SKU pages load helper and accessible notice before cache-busted database',()=>{
   for(const page of ['index.html','cart.html']){
-    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261106-combos"');
+    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261106-combos-feeds"');
     assert.ok(helper>=0&&notice>helper&&database>notice);
   }
   assert.match(source('sku-notice.js'),/aria-live.*polite/);assert.match(source('sku-notice.js'),/pointer-events:none/);

@@ -159,25 +159,20 @@ async function initAllData() {
     const timeout = setTimeout(() => controller.abort(), 12000);
     let feeds;
     try {
-      feeds = await Promise.all([PRODUCT_SHEET_URL, SHOES_SHEET_URL].map(async (url, index) => {
+      feeds = await Promise.all([PRODUCT_SHEET_URL, SHOES_SHEET_URL, COMBOS_SHEET_URL].map(async (url, index) => {
         const response = await fetch(`${url}&_=${now}`, {cache:"no-store", signal:controller.signal});
         if (!response.ok) throw new Error("Could not load a product sheet.");
         const csv = await response.text();
         const headers = csv.replace(/^\uFEFF/, '').split(/\r?\n/)[0].split(',').map(v=>v.trim().toLowerCase());
-        const required = index ? ['sku','parent_sku','size','stock','price'] : ['sku','name','stock','price'];
+        const required = index===2 ? ['sku','name','items','price_catalog','price_perfume_list','image_url'] : index===1 ? ['sku','parent_sku','size','stock','price'] : ['sku','name','stock','price'];
         if (!required.every(v=>headers.includes(v))) throw new Error("Product sheet headers are incomplete.");
         const rows = parseProductCSV(csv).filter(p=>p.id&&p.name&&p.warehouse);
-        if(index && rows.some(p=>!/^([A-Z]+)-XZ-/i.test(p.id))) throw new Error("Unexpected Shoes row.");
+        if(index===1 && rows.some(p=>!/^([A-Z]+)-XZ-/i.test(p.id))) throw new Error("Unexpected Shoes row.");
         return index ? rows : rows.filter(p=>!/^([A-Z]+)-XZ-/i.test(p.id));
       }));
-    } finally { clearTimeout(timeout); }
-    const comboResponse=await fetch(`${COMBOS_SHEET_URL}&_=${now}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-    if(!comboResponse.ok)throw Error('Could not load combos.');
-    const comboCsv=await comboResponse.text();
-    const comboHeaders=comboCsv.replace(/^\uFEFF/,'').split(/\r?\n/)[0].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
-    if(!['sku','name','items','price_catalog','price_perfume_list','image_url'].every(h=>comboHeaders.includes(h)))throw Error('Combo headers are incomplete.');
-    const comboProducts=window.SkuOrderModel.combos(parseProductCSV(comboCsv),feeds[0],'SKU').map(p=>({...p,img:p.img||p.components[0]?.img||''}));
-    const products = [...feeds.flat(),...comboProducts];
+    } finally { controller.abort();clearTimeout(timeout); }
+    const comboProducts=window.SkuOrderModel.combos(feeds[2],feeds[0],'SKU').map(p=>({...p,img:p.img||p.components[0]?.img||''}));
+    const products = [...feeds[0],...feeds[1],...comboProducts];
     if (!products.length) throw new Error("The product sheets are empty.");
 
     setProductData(products);
