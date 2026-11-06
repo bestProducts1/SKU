@@ -29,10 +29,10 @@ function createPage({page='index.html',stored=[],previous=null,publisherFailure=
   const sandbox={console:{...console,warn:(...args)=>warnings.push(args)},
     document:{addEventListener:(name,callback)=>{if(name==='DOMContentLoaded')lifecycle.push(callback);},getElementById:getElement,querySelector:()=>createElement(),querySelectorAll:()=>[],createElement,body:{style:{},appendChild(){}}},
     localStorage:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>{writes.push(key);if((publisherFailure&&key===inquiryKey)||(pendingMarkerFailure&&key==='bestProducts1:sku:inquiry-clear-pending:v1'))throw Error('Browser storage unavailable');memory.set(key,String(value));},removeItem:key=>memory.delete(key)},
-    alert:message=>alerts.push(message),confirm:()=>true,setTimeout:()=>0,clearTimeout(){},AbortController,addEventListener(){},
+    alert:message=>alerts.push(message),confirm:()=>true,setTimeout:()=>0,clearTimeout(){},AbortController,AbortSignal,addEventListener(){},
     navigator:{clipboard:{writeText:()=>Promise.resolve()}},crypto:{randomUUID:()=>`fixture-revision-${publishes.length+1}`},
     showSkuNotice:(message,options={})=>notices.push({message,...options})};
-  sandbox.SkuOrderModel={...model,summary:model.getOrderSummary,identity:model.productIdentity,stockLimit:model.orderStockLimit};
+  sandbox.SkuOrderModel={...model,summary:model.getOrderSummary,identity:model.productIdentity,stockLimit:model.orderStockLimit,combos:model.buildComboProducts,cartLimit:model.cartProductLimit};
   sandbox.window=sandbox;vm.createContext(sandbox);
   memory.set('bestProducts1SharedCartResetV3','done');memory.set(cartKey,JSON.stringify(stored));
   if(pendingClear)memory.set('bestProducts1:sku:inquiry-clear-pending:v1','pending');
@@ -50,6 +50,22 @@ function createPage({page='index.html',stored=[],previous=null,publisherFailure=
     paste(text){let prevented=false;getElement('search-input').events.get('paste')({preventDefault:()=>{prevented=true;},clipboardData:{getData:()=>text}});assert.equal(prevented,true);}};
 }
 const orderText='New Order\nIL Warehouse\nIL-B008 - Valentino Uomo Born in Roma · 100ml\nx 3\nTX Warehouse\nTX-A002 - Valentino Donna Born in Roma · 100ml\nx 2\nSubtotal: $184.00';
+
+test('combo inquiry imports the parent once, keeps composition, and publishes no price or component metadata',()=>{
+ const page=createPage(),third={...products[0],id:'IL-B009',sku:'IL-B009',name:'Second',stock:40};page.sandbox.perfumeDB.push(third);
+ const combo=model.buildComboProducts([{sku:'IL-CB-001',name:'Two Fragrance Combo',items:'IL-B008*1+IL-B009*2',price_catalog:80,price_perfume_list:100}],page.sandbox.perfumeDB,'SKU')[0];page.sandbox.perfumeDB.push(combo);
+ page.paste('New Order\nIL Warehouse\n• IL-CB-001 × 2 - Two Fragrance Combo · 3 pcs / combo\n  Includes: IL-B008 (1 per combo), IL-B009 (2 per combo)\nSubtotal: $200');
+ assert.equal(page.cart().length,1);assert.equal(page.cart()[0].components.length,2);assert.deepEqual(page.inquiry().items,[{sku:'IL-CB-001',warehouse:'IL',quantity:2}]);
+ page.paste('IL-CB-001*99');assert.equal(page.cart().reduce((n,p)=>n+p.quantity,0),20);
+ const before=page.inquiry().revision;page.paste('New Order\nIL Warehouse\nIL-CB-999 - Valentino Uomo Born in Roma\nx 1\nSubtotal: $1');assert.equal(page.inquiry().revision,before);
+});
+test('manual SKU combo edits respect standalone component consumption',()=>{
+ const page=createPage(),third={...products[0],id:'IL-B009',sku:'IL-B009',name:'Second',stock:19};page.sandbox.perfumeDB.push(third);
+ const combo=model.buildComboProducts([{sku:'IL-CB-001',name:'Two Fragrance Combo',items:'IL-B008*1+IL-B009*2',price_catalog:80,price_perfume_list:100}],page.sandbox.perfumeDB,'SKU')[0];page.sandbox.perfumeDB.push(combo);
+ page.paste('IL-B009*5+IL-CB-001*9');assert.equal(page.cart().find(p=>p.name==='IL-CB-001').quantity,7);
+ page.sandbox.addItemToCart('IL-CB-001');assert.equal(page.cart().find(p=>p.name==='IL-CB-001').quantity,7);assert.equal(page.inquiry().items.find(p=>p.sku==='IL-CB-001').quantity,7);
+ assert.ok(page.notices.some(n=>/adjusted/.test(n.message)));assert.deepEqual(page.alerts,[]);
+});
 
 test('exact shoe variants paste and publish individually without defaulting a size',()=>{
   const page=createPage();page.sandbox.perfumeDB.push(shoe(),shoe('41',48),{...shoe(),id:'TX-XZ-06',sku:'TX-XZ-06',size:'',parent_sku:''});
@@ -70,11 +86,11 @@ test('SKU cart totals discount perfumes only and keep exact shoe codes in fulfil
 });
 test('product refresh joins both feeds atomically and retains a complete cache on partial failure',async()=>{
   const page=createPage(),csv='sku,parent_sku,name,size,stock,price\nTX-XZ-04-40,TX-XZ-04,Air Jordan,40,11,137\n';
-  const urls=[];page.sandbox.fetch=async url=>{urls.push(url);return {ok:true,text:async()=>url.includes('gid=531106001')?csv:'sku,name,stock,price\nIL-B008,Valentino,377,36\n'};};
-  await page.sandbox.initAllData();assert.equal(urls.length,2);assert.equal(page.sandbox.perfumeDB.length,2);assert.equal(page.sandbox.perfumeDB[1].size,'40');
-  const cached=page.memory.get('bestProducts1SkuProductsV2_Sizes');page.memory.set('bestProducts1SkuProductsTimeV2_Sizes','1');
+  const urls=[];page.sandbox.fetch=async url=>{urls.push(url);return {ok:true,text:async()=>url.includes('gid=531106001')?csv:url.includes('gid=826113014')?'sku,name,items,price_catalog,price_perfume_list,image_url\n':'sku,name,stock,price\nIL-B008,Valentino,377,36\n'};};
+  await page.sandbox.initAllData();assert.equal(urls.length,3);assert.equal(page.sandbox.perfumeDB.length,2);assert.equal(page.sandbox.perfumeDB[1].size,'40');
+  const cached=page.memory.get('bestProducts1SkuProductsV3_Combos');page.memory.set('bestProducts1SkuProductsTimeV3_Combos','1');
   page.sandbox.console.error=()=>{};page.sandbox.fetch=async url=>({ok:!url.includes('gid=531106001'),text:async()=>'sku,name,stock,price\nIL-B008,New,377,99\n'});
-  await page.sandbox.initAllData();assert.equal(page.sandbox.perfumeDB[0].price,36);assert.equal(page.memory.get('bestProducts1SkuProductsV2_Sizes'),cached);
+  await page.sandbox.initAllData();assert.equal(page.sandbox.perfumeDB[0].price,36);assert.equal(page.memory.get('bestProducts1SkuProductsV3_Combos'),cached);
 });
 test('low-stock SKU copy respects perfume and shoe stock thresholds separately',()=>{
   const page=createPage();page.sandbox.perfumeDB.push(shoe('40',11),shoe('41',0));
@@ -85,7 +101,7 @@ test('low-stock SKU copy respects perfume and shoe stock thresholds separately',
 
 test('both SKU pages load helper and accessible notice before cache-busted database',()=>{
   for(const page of ['index.html','cart.html']){
-    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261106-shoe-sizes"');
+    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261106-combos"');
     assert.ok(helper>=0&&notice>helper&&database>notice);
   }
   assert.match(source('sku-notice.js'),/aria-live.*polite/);assert.match(source('sku-notice.js'),/pointer-events:none/);

@@ -148,7 +148,7 @@
           const pricedItems = cartItems.map(item=>{
             const {matchedProduct,orderSku,warehouseCode,unitPrice}=resolveCartCatalogData(item);
             const priced={...item,price:unitPrice};
-            const alternate=window.SkuOrderModel.isShoe(matchedProduct||item) ? '' : String(item.sku2||matchedProduct?.sku2||'').trim();
+            const alternate=(window.SkuOrderModel.isCombo(matchedProduct||item)||window.SkuOrderModel.isShoe(matchedProduct||item)) ? '' : String(item.sku2||matchedProduct?.sku2||'').trim();
             if(!groups.has(warehouseCode))groups.set(warehouseCode,{items:[],lines:[]});
             groups.get(warehouseCode).items.push(priced);
             groups.get(warehouseCode).lines.push(`${alternate||orderSku||item.name}*${item.quantity}`);
@@ -163,9 +163,9 @@
             part.discountAmount=(cumulativeDiscount-allocatedDiscountCents)/100;
             allocatedDiscountCents=cumulativeDiscount;
             part.totalAmount=(Math.round(part.subtotal*100)-Math.round(part.discountAmount*100))/100;
-            return {warehouse,...part,quantity:part.qty,total:part.totalAmount,lines:group.lines};
+            return {warehouse,...part,quantity:part.qty,total:part.totalAmount,lines:group.lines,comboLines:group.items.filter(window.SkuOrderModel.isCombo).map(item=>`${item.name} contents: ${(item.components||[]).map(p=>`${p.sku} (${p.quantity*item.quantity} pcs)`).join(', ')}`)};
           });
-          const preview=warehouseSummaries.map(g=>`${g.warehouse} Warehouse | ${g.quantity} items | $${g.subtotal.toFixed(2)} - $${g.discountAmount.toFixed(2)} discount = $${g.total.toFixed(2)}\n${g.lines.join('+')}`).join('\n\n');
+          const preview=warehouseSummaries.map(g=>`${g.warehouse} Warehouse | ${g.quantity} items | $${g.subtotal.toFixed(2)} - $${g.discountAmount.toFixed(2)} discount = $${g.total.toFixed(2)}\n${g.lines.join('+')}${g.comboLines.length?'\n'+g.comboLines.join('\n'):''}`).join('\n\n');
           return {...summary,totalQty:summary.qty,finalTotal:summary.totalAmount,warehouseSummaries,preview};
         }
 
@@ -190,7 +190,7 @@
                 ${(summary.discountPercent * 100).toFixed(0)}% off eligible perfumes (${summary.discountQty})
                 (-$${summary.discountAmount.toFixed(2)}) ·
                 <span class="finance-total">Total $${summary.finalTotal.toFixed(2)}</span>
-                ${summary.fullPriceQty ? ` · Shoes / sets: ${summary.fullPriceQty} at full price` : ""}
+                ${summary.fullPriceQty ? ` · Shoes / sets / combos: ${summary.fullPriceQty} at full price` : ""}
               </span>
             `;
           }
@@ -224,7 +224,7 @@
               ? Number(orderProduct.stock) || 0
               : Number(item.stock) || 0;
             const shoe = window.SkuOrderModel.isShoe(orderProduct||item);
-            const isAvailable = stock >= (shoe ? 1 : 19);
+            const isAvailable = window.SkuOrderModel.isCombo(orderProduct||item) ? window.SkuOrderModel.stockLimit(orderProduct||item)>0 : stock >= (shoe ? 1 : 19);
             const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
             const inventoryLabel = isComingSoon
               ? "Coming Soon"
@@ -307,7 +307,7 @@
     </script>
     <script src="inquiry-sync.js?v=20261009-manual-sku-sync"></script>
     <script src="sku-notice.js?v=20261009-manual-sku-sync"></script>
-    <script type="module" src="sku-model.mjs?v=20261106-shoe-sizes"></script>
-    <script src="db.js?v=20261106-shoe-sizes"></script>
+    <script type="module" src="sku-model.mjs?v=20261106-combos"></script>
+    <script src="db.js?v=20261106-combos"></script>
   </body>
 </html>

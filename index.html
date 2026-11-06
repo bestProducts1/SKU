@@ -660,8 +660,8 @@
 
     <script src="inquiry-sync.js?v=20261009-manual-sku-sync"></script>
     <script src="sku-notice.js?v=20261009-manual-sku-sync"></script>
-    <script type="module" src="sku-model.mjs?v=20261106-shoe-sizes"></script>
-    <script src="db.js?v=20261106-shoe-sizes"></script>
+    <script type="module" src="sku-model.mjs?v=20261106-combos"></script>
+    <script src="db.js?v=20261106-combos"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -875,7 +875,7 @@
       oosToolBtn.addEventListener("click", () => {
         const targets = getCatalogProductsForFilters().filter(
           (product) =>
-            Number(product.stock) < (window.SkuOrderModel.isShoe(product) ? 1 : 19) &&
+            (window.SkuOrderModel.isCombo(product) ? window.SkuOrderModel.stockLimit(product)<=0 : Number(product.stock) < (window.SkuOrderModel.isShoe(product) ? 1 : 19)) &&
             (currentWarehouseFilter === "all" ||
               getOrderWarehouseCode(product) === currentWarehouseFilter) &&
             (currentBrandFilter === "all" ||
@@ -944,9 +944,9 @@
 
           let matchesStock = true;
           if (currentStockFilter === "available") {
-            matchesStock = Number(orderProduct.stock) >= (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
+            matchesStock = window.SkuOrderModel.isCombo(orderProduct) ? window.SkuOrderModel.stockLimit(orderProduct)>0 : Number(orderProduct.stock) >= (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
           } else if (currentStockFilter === "below-threshold") {
-            matchesStock = Number(orderProduct.stock) < (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
+            matchesStock = window.SkuOrderModel.isCombo(orderProduct) ? window.SkuOrderModel.stockLimit(orderProduct)<=0 : Number(orderProduct.stock) < (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
           }
 
           const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
@@ -980,15 +980,15 @@
           const orderProduct = getMappedOrderProduct(perfume);
           const stock = Number(orderProduct && orderProduct.stock) || 0;
           const shoe = window.SkuOrderModel.isShoe(orderProduct);
-          const canSelect = !shoe || window.SkuOrderModel.stockLimit(orderProduct) > 0;
-          const isAvailable = stock >= (shoe ? 1 : 19);
+          const canSelect = (!shoe&&!window.SkuOrderModel.isCombo(orderProduct)) || window.SkuOrderModel.stockLimit(orderProduct) > 0;
+          const isAvailable = window.SkuOrderModel.isCombo(orderProduct) ? window.SkuOrderModel.stockLimit(orderProduct)>0 : stock >= (shoe ? 1 : 19);
           const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
           const warehouseCode = getOrderWarehouseCode(orderProduct);
 
           const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
           const orderSku = String(orderProduct && orderProduct.sku || "").trim();
           const displaySku = orderSku || perfume.id;
-          const btnText = !canSelect ? (orderProduct.size ? "Unavailable" : "Sizes pending") : isComingSoon
+          const btnText = !canSelect ? (window.SkuOrderModel.isCombo(orderProduct)||orderProduct.size ? "Unavailable" : "Sizes pending") : isComingSoon
             ? "Add (Coming Soon)"
             : isAvailable
               ? "Add to Cart"
@@ -1069,6 +1069,7 @@
         const perfumeData = db.find((p) => p.id === productId);
 
         if (!perfumeData) return;
+        if (window.SkuOrderModel.isCombo(perfumeData) && !window.SkuOrderModel.stockLimit(perfumeData)) { window.showSkuNotice('This combo is unavailable.',{warning:true}); return; }
         if (window.SkuOrderModel.isShoe(perfumeData) && !window.SkuOrderModel.stockLimit(perfumeData)) { window.showSkuNotice("Select a confirmed size with available stock.", {warning:true}); return; }
 
         const nextItem = createSkuCartItem(perfumeData);
@@ -1178,6 +1179,7 @@
         function findOrderProduct(db, orderItem) {
           const requestedWarehouse = String(orderItem.warehouse || "").toUpperCase();
           const orderCode = String(orderItem.id || "").trim().toLowerCase();
+          if(/^[a-z]+-cb-/i.test(orderCode))return db.find(p=>String(p.sku).toLowerCase()===orderCode&&window.SkuOrderModel.isCombo(p)&&window.SkuOrderModel.stockLimit(p)>0&&(!requestedWarehouse||getOrderWarehouse(p)===requestedWarehouse))||null;
           const codeWithoutWarehouse = orderCode.replace(/^[a-z]+-/, "");
           if (/^(?:[a-z]+-)?xz-/i.test(orderCode)) {
             const matches = db.filter(p=>window.SkuOrderModel.isShoe(p) &&
@@ -1185,7 +1187,7 @@
               (!requestedWarehouse || getOrderWarehouse(p)===requestedWarehouse) && window.SkuOrderModel.stockLimit(p)>0);
             return matches.length===1 ? matches[0] : null;
           }
-          db = db.filter(p=>!window.SkuOrderModel.isShoe(p));
+          db = db.filter(p=>!window.SkuOrderModel.isShoe(p)&&!window.SkuOrderModel.isCombo(p));
           const orderCatalogProduct = (window.orderDB || []).find(
             (product) => String(product.sku || "").trim().toLowerCase() === orderCode,
           );
@@ -1409,11 +1411,13 @@
               
               if (!skuName || qty <= 0) return;
 
+              const comboCode=/^[a-z]+-cb-/i.test(skuName);
+              const comboMatch=comboCode?db.find(p=>String(p.sku).toUpperCase()===skuName.toUpperCase()&&window.SkuOrderModel.isCombo(p)&&window.SkuOrderModel.stockLimit(p)>0):null;
               const shoeCode = /^(?:[a-z]+-)?xz-/i.test(skuName);
               const candidates = shoeCode ? db.filter(p=>window.SkuOrderModel.isShoe(p)&&window.SkuOrderModel.stockLimit(p)>0&&
                 (String(p.sku).toUpperCase()===skuName.toUpperCase() || (!/^[a-z]+-xz-/i.test(skuName)&&String(p.sku).replace(/^[A-Z]+-/, '').toUpperCase()===skuName.toUpperCase()))) : [];
-              const fragranceDB = db.filter(p=>!window.SkuOrderModel.isShoe(p));
-              const product = shoeCode ? (candidates.length===1 ? candidates[0] : null) :
+              const fragranceDB = db.filter(p=>!window.SkuOrderModel.isShoe(p)&&!window.SkuOrderModel.isCombo(p));
+              const product = comboCode ? comboMatch : shoeCode ? (candidates.length===1 ? candidates[0] : null) :
                 fragranceDB.find(p=>p.sku===skuName) || fragranceDB.find(p=>p.sku2===skuName) ||
                 fragranceDB.find(p=>p.name===skuName) || fragranceDB.find(p=>[p.sku,p.sku2,p.name].some(v=>v&&v.includes(skuName)));
 

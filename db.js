@@ -3,9 +3,11 @@ const PRODUCT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFWY
 
 const SHOES_SHEET_URL = PRODUCT_SHEET_URL.replace('gid=1967485424','gid=531106001');
 
+const COMBOS_SHEET_URL = PRODUCT_SHEET_URL.replace('gid=1967485424','gid=826113014');
+
 const CACHE_DURATION = 5 * 60 * 1000;
-const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV2_Sizes";
-const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV2_Sizes";
+const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV3_Combos";
+const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV3_Combos";
 const SKU_CART_STORAGE_KEY = "bestProducts1SharedCartV3";
 const SKU_CART_RESET_KEY = "bestProducts1SharedCartResetV3";
 const SKU_INQUIRY_PENDING_CLEAR_KEY = "bestProducts1:sku:inquiry-clear-pending:v1";
@@ -64,7 +66,7 @@ function clearPendingSkuInquiryClear() {
 
 function writeSkuToolCart(items) {
   resetSkuCartOnce();
-  const cart = Array.isArray(items) ? items : [];
+  const cart = reconcileSkuCombos(Array.isArray(items) ? items : []);
   localStorage.setItem(SKU_CART_STORAGE_KEY, JSON.stringify(cart));
   try {
     if (!cart.length) localStorage.setItem(SKU_INQUIRY_PENDING_CLEAR_KEY, "pending");
@@ -72,6 +74,23 @@ function writeSkuToolCart(items) {
   } catch (error) { console.warn("The pending inquiry retry could not be saved:", error); }
   syncSkuCartInquiry(cart);
   return cart;
+}
+
+function reconcileSkuCombos(cart) {
+  const model=window.SkuOrderModel,catalog=window.orderDB||[];
+  if(!model||!catalog.length||!cart.some(model.isCombo))return cart;
+  const result=[],linked=new Set(cart.filter(model.isCombo).flatMap(p=>(catalog.find(c=>c.id===p.name)?.components||p.components||[]).map(c=>c.sku)));
+  let changed=false;
+  for(const item of cart){
+    if(!model.isCombo(item)&&!linked.has(item.name)){result.push(item);continue;}
+    const p=catalog.find(p=>p.id===item.name&&p.warehouse===item.warehouse);
+    const allocated=result.filter(i=>i.name===item.name&&i.warehouse===item.warehouse).reduce((n,i)=>n+Number(i.quantity),0);
+    const quantity=Math.max(0,Math.min(Number(item.quantity)||0,model.cartLimit(p,result,catalog)-allocated));
+    if(quantity!==item.quantity)changed=true;
+    if(quantity)result.push({...item,...model.identity(p),quantity});
+  }
+  if(changed)window.showSkuNotice?.('Combo quantities adjusted to the available component inventory.',{warning:true});
+  return result;
 }
 
 function skuInquiryQuantitySignature(items, fromCart = false) {
@@ -152,7 +171,13 @@ async function initAllData() {
         return index ? rows : rows.filter(p=>!/^([A-Z]+)-XZ-/i.test(p.id));
       }));
     } finally { clearTimeout(timeout); }
-    const products = feeds.flat();
+    const comboResponse=await fetch(`${COMBOS_SHEET_URL}&_=${now}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+    if(!comboResponse.ok)throw Error('Could not load combos.');
+    const comboCsv=await comboResponse.text();
+    const comboHeaders=comboCsv.replace(/^\uFEFF/,'').split(/\r?\n/)[0].split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+    if(!['sku','name','items','price_catalog','price_perfume_list','image_url'].every(h=>comboHeaders.includes(h)))throw Error('Combo headers are incomplete.');
+    const comboProducts=window.SkuOrderModel.combos(parseProductCSV(comboCsv),feeds[0],'SKU').map(p=>({...p,img:p.img||p.components[0]?.img||''}));
+    const products = [...feeds.flat(),...comboProducts];
     if (!products.length) throw new Error("The product sheets are empty.");
 
     setProductData(products);
