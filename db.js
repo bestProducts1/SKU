@@ -1,9 +1,11 @@
 // SKU conversion catalog: the current warehouse sheet is the only data source.
 const PRODUCT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFWYImNbJ0ao5z0VDk_VZwhOP1pnY2UZdFuwxtYOvKaNfEX4sInJh7uk-MlRSH9kffdZ5TjzhudLao/pub?gid=1967485424&single=true&output=csv";
 
+const SHOES_SHEET_URL = PRODUCT_SHEET_URL.replace('gid=1967485424','gid=531106001');
+
 const CACHE_DURATION = 5 * 60 * 1000;
-const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV1";
-const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV1";
+const PRODUCT_CACHE_KEY = "bestProducts1SkuProductsV2_Sizes";
+const PRODUCT_TIME_KEY = "bestProducts1SkuProductsTimeV2_Sizes";
 const SKU_CART_STORAGE_KEY = "bestProducts1SharedCartV3";
 const SKU_CART_RESET_KEY = "bestProducts1SharedCartResetV3";
 const SKU_INQUIRY_PENDING_CLEAR_KEY = "bestProducts1:sku:inquiry-clear-pending:v1";
@@ -134,14 +136,24 @@ async function initAllData() {
   }
 
   try {
-    const response = await fetch(`${PRODUCT_SHEET_URL}&_=${now}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error("Could not load the product sheet.");
-    const products = parseProductCSV(await response.text()).filter(
-      (product) => product.id && product.name && product.warehouse,
-    );
-    if (!products.length) throw new Error("The product sheet is empty.");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    let feeds;
+    try {
+      feeds = await Promise.all([PRODUCT_SHEET_URL, SHOES_SHEET_URL].map(async (url, index) => {
+        const response = await fetch(`${url}&_=${now}`, {cache:"no-store", signal:controller.signal});
+        if (!response.ok) throw new Error("Could not load a product sheet.");
+        const csv = await response.text();
+        const headers = csv.replace(/^\uFEFF/, '').split(/\r?\n/)[0].split(',').map(v=>v.trim().toLowerCase());
+        const required = index ? ['sku','parent_sku','size','stock','price'] : ['sku','name','stock','price'];
+        if (!required.every(v=>headers.includes(v))) throw new Error("Product sheet headers are incomplete.");
+        const rows = parseProductCSV(csv).filter(p=>p.id&&p.name&&p.warehouse);
+        if(index && rows.some(p=>!/^([A-Z]+)-XZ-/i.test(p.id))) throw new Error("Unexpected Shoes row.");
+        return index ? rows : rows.filter(p=>!/^([A-Z]+)-XZ-/i.test(p.id));
+      }));
+    } finally { clearTimeout(timeout); }
+    const products = feeds.flat();
+    if (!products.length) throw new Error("The product sheets are empty.");
 
     setProductData(products);
     localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(products));

@@ -631,10 +631,10 @@
               All Inventory
             </button>
             <button class="nav-btn stock-filter-btn" data-stock-filter="available">
-              Available (19+)
+              Available
             </button>
             <button class="nav-btn stock-filter-btn" data-stock-filter="below-threshold">
-              Below 19
+              Low / unavailable
             </button>
           </div>
         </div>
@@ -648,7 +648,7 @@
     <div class="modal-overlay" id="sku-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <div class="modal-title" id="sku-modal-title">Below-19 Product SKUs</div>
+          <div class="modal-title" id="sku-modal-title">Low / Unavailable Product SKUs</div>
           <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body" id="modal-sku-list"></div>
@@ -660,7 +660,8 @@
 
     <script src="inquiry-sync.js?v=20261009-manual-sku-sync"></script>
     <script src="sku-notice.js?v=20261009-manual-sku-sync"></script>
-    <script src="db.js?v=20261009-manual-sku-sync"></script>
+    <script type="module" src="sku-model.mjs?v=20261106-shoe-sizes"></script>
+    <script src="db.js?v=20261106-shoe-sizes"></script>
 
     <script>
       let currentBrandFilter = "all";
@@ -790,8 +791,9 @@
       function createSkuCartItem(product, quantity = 1) {
         const sku = String(product && product.sku || "").trim().toUpperCase();
         return {
+          ...window.SkuOrderModel.identity(product),
           name: sku,
-          caption: `${sku} - ${product.name}`,
+          caption: `${sku} - ${product.name}${window.SkuOrderModel.isShoe(product) ? ` · Size ${product.size || "pending"}` : ""}`,
           img: product.img,
           quantity,
           price: Number(product.price) || 0,
@@ -942,9 +944,9 @@
 
           let matchesStock = true;
           if (currentStockFilter === "available") {
-            matchesStock = Number(orderProduct.stock) >= 19;
+            matchesStock = Number(orderProduct.stock) >= (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
           } else if (currentStockFilter === "below-threshold") {
-            matchesStock = Number(orderProduct.stock) < 19;
+            matchesStock = Number(orderProduct.stock) < (window.SkuOrderModel.isShoe(orderProduct) ? 1 : 19);
           }
 
           const skuStr = perfume.sku ? String(perfume.sku).toLowerCase() : "";
@@ -977,14 +979,16 @@
           card.className = "product-card";
           const orderProduct = getMappedOrderProduct(perfume);
           const stock = Number(orderProduct && orderProduct.stock) || 0;
-          const isAvailable = stock >= 19;
+          const shoe = window.SkuOrderModel.isShoe(orderProduct);
+          const canSelect = !shoe || window.SkuOrderModel.stockLimit(orderProduct) > 0;
+          const isAvailable = stock >= (shoe ? 1 : 19);
           const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
           const warehouseCode = getOrderWarehouseCode(orderProduct);
 
           const correctImgSrc = perfume.img || `images/${perfume.id}.webp`;
           const orderSku = String(orderProduct && orderProduct.sku || "").trim();
           const displaySku = orderSku || perfume.id;
-          const btnText = isComingSoon
+          const btnText = !canSelect ? (orderProduct.size ? "Unavailable" : "Sizes pending") : isComingSoon
             ? "Add (Coming Soon)"
             : isAvailable
               ? "Add to Cart"
@@ -993,7 +997,7 @@
             ? "Coming Soon"
             : isAvailable
               ? `${stock} in stock`
-              : `Below 19 (${stock})`;
+              : `${shoe ? "Unavailable" : "Below 19"} (${stock})`;
 
           card.innerHTML = `
             <div class="product-image-container">
@@ -1002,12 +1006,12 @@
             </div>
             <div class="product-info">
               <p class="product-id">${displaySku}</p>
-              <p class="product-name">${perfume.name}</p>
+              <p class="product-name">${perfume.name}${shoe ? ` · Size ${orderProduct.size || "pending"}` : ""}</p>
               <p class="product-price">$${Number(orderProduct.price || perfume.price).toFixed(2)}</p>
               <span class="warehouse-badge${!isAvailable || isComingSoon ? " low-stock" : ""}">${warehouseCode || "Unknown"} Warehouse · ${inventoryLabel}</span>
             </div>
             
-            <button class="add-to-cart-btn ${!isAvailable || isComingSoon ? "oos-allowed" : ""}" data-id="${perfume.id}">
+            <button class="add-to-cart-btn ${!isAvailable || isComingSoon ? "oos-allowed" : ""}" data-id="${perfume.id}" ${canSelect ? "" : "disabled"}>
               ${btnText}
             </button>
           `;
@@ -1065,6 +1069,7 @@
         const perfumeData = db.find((p) => p.id === productId);
 
         if (!perfumeData) return;
+        if (window.SkuOrderModel.isShoe(perfumeData) && !window.SkuOrderModel.stockLimit(perfumeData)) { window.showSkuNotice("Select a confirmed size with available stock.", {warning:true}); return; }
 
         const nextItem = createSkuCartItem(perfumeData);
         const existingItem = cartItems.find(
@@ -1173,7 +1178,14 @@
         function findOrderProduct(db, orderItem) {
           const requestedWarehouse = String(orderItem.warehouse || "").toUpperCase();
           const orderCode = String(orderItem.id || "").trim().toLowerCase();
-          const codeWithoutWarehouse = orderCode.replace(/^(?:il|tx)-/, "");
+          const codeWithoutWarehouse = orderCode.replace(/^[a-z]+-/, "");
+          if (/^(?:[a-z]+-)?xz-/i.test(orderCode)) {
+            const matches = db.filter(p=>window.SkuOrderModel.isShoe(p) &&
+              (String(p.sku).toLowerCase()===orderCode || (!/^[a-z]+-xz-/i.test(orderCode)&&String(p.sku).toLowerCase().replace(/^[a-z]+-/, '')===orderCode)) &&
+              (!requestedWarehouse || getOrderWarehouse(p)===requestedWarehouse) && window.SkuOrderModel.stockLimit(p)>0);
+            return matches.length===1 ? matches[0] : null;
+          }
+          db = db.filter(p=>!window.SkuOrderModel.isShoe(p));
           const orderCatalogProduct = (window.orderDB || []).find(
             (product) => String(product.sku || "").trim().toLowerCase() === orderCode,
           );
@@ -1397,10 +1409,13 @@
               
               if (!skuName || qty <= 0) return;
 
-              const product = db.find(p => p.sku && p.sku === skuName) ||
-                              db.find(p => p.sku2 && p.sku2 === skuName) ||
-                              db.find(p => p.name && p.name === skuName) ||
-                              db.find(p => (p.sku && p.sku.includes(skuName)) || (p.sku2 && p.sku2.includes(skuName)) || (p.name && p.name.includes(skuName)));
+              const shoeCode = /^(?:[a-z]+-)?xz-/i.test(skuName);
+              const candidates = shoeCode ? db.filter(p=>window.SkuOrderModel.isShoe(p)&&window.SkuOrderModel.stockLimit(p)>0&&
+                (String(p.sku).toUpperCase()===skuName.toUpperCase() || (!/^[a-z]+-xz-/i.test(skuName)&&String(p.sku).replace(/^[A-Z]+-/, '').toUpperCase()===skuName.toUpperCase()))) : [];
+              const fragranceDB = db.filter(p=>!window.SkuOrderModel.isShoe(p));
+              const product = shoeCode ? (candidates.length===1 ? candidates[0] : null) :
+                fragranceDB.find(p=>p.sku===skuName) || fragranceDB.find(p=>p.sku2===skuName) ||
+                fragranceDB.find(p=>p.name===skuName) || fragranceDB.find(p=>[p.sku,p.sku2,p.name].some(v=>v&&v.includes(skuName)));
 
               if (product) {
                 const nextItem = createSkuCartItem(product, qty);

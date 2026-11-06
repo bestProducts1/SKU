@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import * as model from '../catalog-model.mjs';
 
 const root = new URL('../', import.meta.url);
 const source = file => fs.readFileSync(new URL(file, root), 'utf8');
@@ -13,6 +14,7 @@ const products = [
   {id:'TX-A002',sku:'TX-A002',name:'Valentino Donna Born in Roma',brand:'Valentino',ml:'100',warehouse:'TX',stock:48,price:38,img:'https://example.test/tx.webp',sku2:'朋克甜心'},
 ];
 const item = (quantity=2) => ({name:'IL-B008',quantity,warehouse:'IL',price:36});
+const shoe = (size='40',stock=11) => ({id:`TX-XZ-04-${size}`,sku:`TX-XZ-04-${size}`,parent_sku:'TX-XZ-04',size,name:'Air Jordan 5 Retro',warehouse:'TX',price:137,stock});
 const bridge = (quantity=2) => ({version:1,source:'SKU',revision:'previous-inquiry',createdAt:Date.now(),items:[{sku:'IL-B008',warehouse:'IL',quantity}]});
 
 function createElement(){
@@ -27,9 +29,10 @@ function createPage({page='index.html',stored=[],previous=null,publisherFailure=
   const sandbox={console:{...console,warn:(...args)=>warnings.push(args)},
     document:{addEventListener:(name,callback)=>{if(name==='DOMContentLoaded')lifecycle.push(callback);},getElementById:getElement,querySelector:()=>createElement(),querySelectorAll:()=>[],createElement,body:{style:{},appendChild(){}}},
     localStorage:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>{writes.push(key);if((publisherFailure&&key===inquiryKey)||(pendingMarkerFailure&&key==='bestProducts1:sku:inquiry-clear-pending:v1'))throw Error('Browser storage unavailable');memory.set(key,String(value));},removeItem:key=>memory.delete(key)},
-    alert:message=>alerts.push(message),confirm:()=>true,setTimeout:()=>0,clearTimeout(){},addEventListener(){},
+    alert:message=>alerts.push(message),confirm:()=>true,setTimeout:()=>0,clearTimeout(){},AbortController,addEventListener(){},
     navigator:{clipboard:{writeText:()=>Promise.resolve()}},crypto:{randomUUID:()=>`fixture-revision-${publishes.length+1}`},
     showSkuNotice:(message,options={})=>notices.push({message,...options})};
+  sandbox.SkuOrderModel={...model,summary:model.getOrderSummary,identity:model.productIdentity,stockLimit:model.orderStockLimit};
   sandbox.window=sandbox;vm.createContext(sandbox);
   memory.set('bestProducts1SharedCartResetV3','done');memory.set(cartKey,JSON.stringify(stored));
   if(pendingClear)memory.set('bestProducts1:sku:inquiry-clear-pending:v1','pending');
@@ -48,9 +51,35 @@ function createPage({page='index.html',stored=[],previous=null,publisherFailure=
 }
 const orderText='New Order\nIL Warehouse\nIL-B008 - Valentino Uomo Born in Roma · 100ml\nx 3\nTX Warehouse\nTX-A002 - Valentino Donna Born in Roma · 100ml\nx 2\nSubtotal: $184.00';
 
+test('exact shoe variants paste and publish individually without defaulting a size',()=>{
+  const page=createPage();page.sandbox.perfumeDB.push(shoe(),shoe('41',48),{...shoe(),id:'TX-XZ-06',sku:'TX-XZ-06',size:'',parent_sku:''});
+  page.paste('TX-XZ-04-40*1+XZ-04-41*2');
+  assert.deepEqual(page.inquiry().items,[{sku:'TX-XZ-04-40',warehouse:'TX',quantity:1},{sku:'TX-XZ-04-41',warehouse:'TX',quantity:2}]);
+  assert.equal(page.cart()[0].size,'40');assert.equal(page.cart()[1].size,'41');assert.equal(page.cart()[0].product_type,'shoe');
+  const before=page.inquiry().revision;page.paste('TX-XZ-04*3+Air Jordan 5 Retro*1');page.sandbox.addItemToCart('TX-XZ-06');
+  assert.equal(page.inquiry().revision,before);assert.equal(page.cart().length,2);assert.deepEqual(page.alerts,[]);
+  page.paste('New Order\nTX Warehouse\nTX-XZ-04-40 - Air Jordan 5 Retro · Size 40\nx 2\nTX-XZ-04-41 - Air Jordan 5 Retro · Size 41\nx 3\nSubtotal: $685');
+  assert.deepEqual(page.inquiry().items,[{sku:'TX-XZ-04-40',warehouse:'TX',quantity:2},{sku:'TX-XZ-04-41',warehouse:'TX',quantity:3}]);
+});
+test('SKU cart totals discount perfumes only and keep exact shoe codes in fulfillment copy',()=>{
+  const items=[item(2),{name:'TX-XZ-04-40',quantity:2,warehouse:'TX',price:137,...model.productIdentity(shoe())},{name:'IL-LH-01',caption:'Gift Set',quantity:1,warehouse:'IL',price:49}];
+  const page=createPage({page:'cart.html',stored:items});
+  const text=page.getElement('order-preview-text').value;
+  assert.match(text,/TX-XZ-04-40\*2/);assert.match(text,/IL Warehouse \| 3 items \| \$121\.00 - \$2\.16 discount = \$118\.84/);
+  assert.match(text,/TX Warehouse \| 2 items \| \$274\.00 - \$0\.00 discount = \$274\.00/);
+});
+test('product refresh joins both feeds atomically and retains a complete cache on partial failure',async()=>{
+  const page=createPage(),csv='sku,parent_sku,name,size,stock,price\nTX-XZ-04-40,TX-XZ-04,Air Jordan,40,11,137\n';
+  const urls=[];page.sandbox.fetch=async url=>{urls.push(url);return {ok:true,text:async()=>url.includes('gid=531106001')?csv:'sku,name,stock,price\nIL-B008,Valentino,377,36\n'};};
+  await page.sandbox.initAllData();assert.equal(urls.length,2);assert.equal(page.sandbox.perfumeDB.length,2);assert.equal(page.sandbox.perfumeDB[1].size,'40');
+  const cached=page.memory.get('bestProducts1SkuProductsV2_Sizes');page.memory.set('bestProducts1SkuProductsTimeV2_Sizes','1');
+  page.sandbox.console.error=()=>{};page.sandbox.fetch=async url=>({ok:!url.includes('gid=531106001'),text:async()=>'sku,name,stock,price\nIL-B008,New,377,99\n'});
+  await page.sandbox.initAllData();assert.equal(page.sandbox.perfumeDB[0].price,36);assert.equal(page.memory.get('bestProducts1SkuProductsV2_Sizes'),cached);
+});
+
 test('both SKU pages load helper and accessible notice before cache-busted database',()=>{
   for(const page of ['index.html','cart.html']){
-    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261009-manual-sku-sync"');
+    const html=source(page),helper=html.indexOf('src="inquiry-sync.js?v=20261009-manual-sku-sync"'),notice=html.indexOf('src="sku-notice.js?v=20261009-manual-sku-sync"'),database=html.indexOf('src="db.js?v=20261106-shoe-sizes"');
     assert.ok(helper>=0&&notice>helper&&database>notice);
   }
   assert.match(source('sku-notice.js'),/aria-live.*polite/);assert.match(source('sku-notice.js'),/pointer-events:none/);

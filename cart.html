@@ -144,79 +144,29 @@
         }
 
         function buildOrderSummary() {
-          const warehouseGroups = new Map();
-          let totalQty = 0;
-          let subtotal = 0;
-
-          cartItems.forEach((item) => {
-            const {
-              matchedProduct,
-              orderSku,
-              warehouseCode,
-              unitPrice,
-            } = resolveCartCatalogData(item);
-            const alternateSku = String(
-              item.sku2 || matchedProduct && matchedProduct.sku2 || "",
-            ).trim();
-
-            const quantity = Number(item.quantity) || 0;
-            const orderLine = `${alternateSku || orderSku || item.name}*${quantity}`;
-
-            if (!warehouseGroups.has(warehouseCode)) {
-              warehouseGroups.set(warehouseCode, {
-                lines: [],
-                quantity: 0,
-                subtotal: 0,
-              });
-            }
-            const group = warehouseGroups.get(warehouseCode);
-            group.lines.push(orderLine);
-            group.quantity += quantity;
-            group.subtotal += unitPrice * quantity;
-            totalQty += quantity;
-            subtotal += unitPrice * quantity;
+          const groups = new Map();
+          const pricedItems = cartItems.map(item=>{
+            const {matchedProduct,orderSku,warehouseCode,unitPrice}=resolveCartCatalogData(item);
+            const priced={...item,price:unitPrice};
+            const alternate=window.SkuOrderModel.isShoe(matchedProduct||item) ? '' : String(item.sku2||matchedProduct?.sku2||'').trim();
+            if(!groups.has(warehouseCode))groups.set(warehouseCode,{items:[],lines:[]});
+            groups.get(warehouseCode).items.push(priced);
+            groups.get(warehouseCode).lines.push(`${alternate||orderSku||item.name}*${item.quantity}`);
+            return priced;
           });
-
-          const tier = discountTiers.find(
-            (item) => totalQty >= item.min && totalQty <= item.max,
-          ) || discountTiers[0];
-          const discountPercent = tier.percent;
-          const discountAmount = subtotal * discountPercent;
-          const finalTotal = subtotal - discountAmount;
-          const warehousePriority = { IL: 0, TX: 1 };
-          const warehouseSummaries = Array.from(warehouseGroups.entries())
-            .sort(([warehouseA], [warehouseB]) => {
-              const rankA = warehousePriority[warehouseA] ?? 99;
-              const rankB = warehousePriority[warehouseB] ?? 99;
-              return rankA - rankB || warehouseA.localeCompare(warehouseB);
-            })
-            .map(([warehouse, group]) => ({
-              warehouse,
-              ...group,
-              discountPercent,
-              discountAmount: group.subtotal * discountPercent,
-              total: group.subtotal * (1 - discountPercent),
-            }));
-
-          const preview = warehouseSummaries
-            .map((group) => {
-              const discountText = group.discountPercent > 0
-                ? ` | $${group.subtotal.toFixed(2)} - ${(group.discountPercent * 100).toFixed(0)}% = $${group.total.toFixed(2)}`
-                : ` | $${group.total.toFixed(2)}`;
-              const itemLabel = group.quantity === 1 ? "item" : "items";
-              return `${group.warehouse} Warehouse | ${group.quantity} ${itemLabel}${discountText}\n${group.lines.join("+")}`;
-            })
-            .join("\n\n");
-
-          return {
-            totalQty,
-            subtotal,
-            discountPercent,
-            discountAmount,
-            finalTotal,
-            warehouseSummaries,
-            preview,
-          };
+          const summary=window.SkuOrderModel.summary(pricedItems,discountTiers,window.orderDB||[]);
+          let eligibleCents=0,allocatedDiscountCents=0;
+          const warehouseSummaries=[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([warehouse,group])=>{
+            const part=window.SkuOrderModel.summary(group.items,[{min:0,max:Infinity,percent:summary.discountPercent}],window.orderDB||[]);
+            eligibleCents+=Math.round(part.discountSubtotal*100);
+            const cumulativeDiscount=Math.round(eligibleCents*summary.discountPercent+Number.EPSILON);
+            part.discountAmount=(cumulativeDiscount-allocatedDiscountCents)/100;
+            allocatedDiscountCents=cumulativeDiscount;
+            part.totalAmount=(Math.round(part.subtotal*100)-Math.round(part.discountAmount*100))/100;
+            return {warehouse,...part,quantity:part.qty,total:part.totalAmount,lines:group.lines};
+          });
+          const preview=warehouseSummaries.map(g=>`${g.warehouse} Warehouse | ${g.quantity} items | $${g.subtotal.toFixed(2)} - $${g.discountAmount.toFixed(2)} discount = $${g.total.toFixed(2)}\n${g.lines.join('+')}`).join('\n\n');
+          return {...summary,totalQty:summary.qty,finalTotal:summary.totalAmount,warehouseSummaries,preview};
         }
 
         function updatePageState() {
@@ -237,9 +187,10 @@
               <span class="finance-values">
                 ${summary.totalQty} ${summary.totalQty === 1 ? "item" : "items"} ·
                 Subtotal $${summary.subtotal.toFixed(2)} ·
-                ${(summary.discountPercent * 100).toFixed(0)}% off
+                ${(summary.discountPercent * 100).toFixed(0)}% off eligible perfumes (${summary.discountQty})
                 (-$${summary.discountAmount.toFixed(2)}) ·
                 <span class="finance-total">Total $${summary.finalTotal.toFixed(2)}</span>
+                ${summary.fullPriceQty ? ` · Shoes / sets: ${summary.fullPriceQty} at full price` : ""}
               </span>
             `;
           }
@@ -272,15 +223,16 @@
             const stock = orderProduct
               ? Number(orderProduct.stock) || 0
               : Number(item.stock) || 0;
-            const isAvailable = stock >= 19;
+            const shoe = window.SkuOrderModel.isShoe(orderProduct||item);
+            const isAvailable = stock >= (shoe ? 1 : 19);
             const isComingSoon = Number(orderProduct && orderProduct.coming_soon_weight) > 0;
             const inventoryLabel = isComingSoon
               ? "Coming Soon"
               : isAvailable
                 ? `${stock} in stock`
-                : `Below 19 (${stock})`;
+                : `${shoe ? "Unavailable" : "Below 19"} (${stock})`;
             const displayName = matchedProduct
-              ? `${orderSku} - ${matchedProduct.name}`
+              ? `${orderSku} - ${matchedProduct.name}${shoe ? ` · Size ${matchedProduct.size || "pending"}` : ""}`
               : (item.caption || item.name);
             const correctImgSrc = item.img || `images/${item.name}.webp`;
 
@@ -355,6 +307,7 @@
     </script>
     <script src="inquiry-sync.js?v=20261009-manual-sku-sync"></script>
     <script src="sku-notice.js?v=20261009-manual-sku-sync"></script>
-    <script src="db.js?v=20261009-manual-sku-sync"></script>
+    <script type="module" src="sku-model.mjs?v=20261106-shoe-sizes"></script>
+    <script src="db.js?v=20261106-shoe-sizes"></script>
   </body>
 </html>
