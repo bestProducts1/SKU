@@ -569,7 +569,7 @@
         <button
           id="oos-tool-btn"
           class="icon-btn"
-          title="Copy below-19 product SKUs for the selected warehouse"
+          title="Copy low-stock perfume and unavailable shoe SKUs for the selected warehouse"
         >
           📋
         </button>
@@ -875,7 +875,7 @@
       oosToolBtn.addEventListener("click", () => {
         const targets = getCatalogProductsForFilters().filter(
           (product) =>
-            Number(product.stock) < 19 &&
+            Number(product.stock) < (window.SkuOrderModel.isShoe(product) ? 1 : 19) &&
             (currentWarehouseFilter === "all" ||
               getOrderWarehouseCode(product) === currentWarehouseFilter) &&
             (currentBrandFilter === "all" ||
@@ -883,7 +883,7 @@
         );
 
         if (targets.length === 0) {
-          alert("No below-19 products found for the current filters.");
+          window.showSkuNotice("No low-stock perfumes or unavailable shoes found for the current filters.");
           return;
         }
 
@@ -891,8 +891,8 @@
         const listText = skus.join("\n");
 
         skuModalTitle.textContent = currentWarehouseFilter === "all"
-          ? "Below-19 Product SKUs"
-          : `${currentWarehouseFilter} Warehouse Below-19 SKUs`;
+          ? "Low / Unavailable Product SKUs"
+          : `${currentWarehouseFilter} Warehouse Low / Unavailable SKUs`;
         document.getElementById("modal-sku-list").textContent = listText;
         skuModal.classList.add("open");
 

@@ -76,6 +76,12 @@ test('product refresh joins both feeds atomically and retains a complete cache o
   page.sandbox.console.error=()=>{};page.sandbox.fetch=async url=>({ok:!url.includes('gid=531106001'),text:async()=>'sku,name,stock,price\nIL-B008,New,377,99\n'});
   await page.sandbox.initAllData();assert.equal(page.sandbox.perfumeDB[0].price,36);assert.equal(page.memory.get('bestProducts1SkuProductsV2_Sizes'),cached);
 });
+test('low-stock SKU copy respects perfume and shoe stock thresholds separately',()=>{
+  const page=createPage();page.sandbox.perfumeDB.push(shoe('40',11),shoe('41',0));
+  page.getElement('oos-tool-btn').events.get('click')();
+  assert.equal(page.getElement('modal-sku-list').textContent,'TX-XZ-04-41');
+  assert.match(page.getElement('sku-modal-title').textContent,/Low \/ Unavailable/);
+});
 
 test('both SKU pages load helper and accessible notice before cache-busted database',()=>{
   for(const page of ['index.html','cart.html']){
